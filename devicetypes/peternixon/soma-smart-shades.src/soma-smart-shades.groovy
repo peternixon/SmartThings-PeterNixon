@@ -170,7 +170,7 @@ metadata {
         }
         */
         valueTile("batteryLevel", "device.battery", width: 2, height: 2) {
-            state "battery", label:'${currentValue}% battery', unit:"",
+            state "battery", label:'${currentValue}% battery', unit:"%",
             backgroundColors:[
             [value: 31, color: "#153591"],
             [value: 44, color: "#1e9cbb"],
@@ -181,13 +181,13 @@ metadata {
             [value: 96, color: "#bc2323"]
         ]
         }
-        valueTile("BatteryVoltage", "device.voltage", width: 2, height: 2) {
-            state "voltage", label:'${currentValue} mV', unit:""
+        valueTile("BatteryVoltage", "device.voltage", width: 2, height: 2, range:"(320..420)") {
+            state "voltage", label:'${currentValue} mV', unit:"mV"
         }
         valueTile("shadeLevel", "device.level", width: 2, height: 2) {
             state "level", label:'${currentValue} %', unit:""
         }
-        controlTile("levelSlider", "device.level", "slider", height: 2, width: 2) {
+        controlTile("levelSlider", "device.level", "slider", height: 2, width: 2, range:"(0..100)") {
             state "level", action:"setLevel"
         }
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 1) {
@@ -240,7 +240,7 @@ def installed() {
 
 def updated() {
     log.debug "updated()"
-    setDniHack()
+    // setDniHack()
     def commands = (settings.supportedCommands != null) ? settings.supportedCommands : "2"
     sendEvent(name: "supportedWindowShadeCommands", value: JsonOutput.toJson(supportedCommandsMap[commands]))
 }
@@ -273,14 +273,15 @@ def parse(description) {
                 // The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
                 log.info "SOMA Shade Battery Level: $json.battery_level"
                 
-                def bat_percentage = json.battery_level - 320
+                def bat_percentage = json.battery_level - 315
                 sendEvent(name:"voltage", value: json.battery_level, unit: "mV", displayed: true)
                 sendEvent(name:"battery", value: bat_percentage, unit: "%", displayed: true)
             }
             if (json.position) {
-                // The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
-                log.info "SOMA Shade Position: $json.position"
-                sendEvent(name:"level", value: json.position, unit: "%", displayed: true)
+                // The native Soma app seems to subtract one from the returned position
+                def positionPercentage = json.position - 1
+                log.info "SOMA Shade Position: $positionPercentage"
+                sendEvent(name:"level", value: positionPercentage, unit: "%", displayed: true)
             }
         }
     }
@@ -303,14 +304,17 @@ def refresh() {
     log.info "Device ID: $device.deviceNetworkId refresh() was triggered"
     runIn(1, "checkPosition")
     // return checkPosition()
-    checkPosition()
-    return checkBattery()
+    //checkPosition()
+    //return checkBattery()
+    return [checkPosition(), checkBattery()]
 }
 
 def poll() {
     log.info "Device ID: $device.deviceNetworkId poll() was triggered"
-    return checkBattery()
+    //return checkBattery()
     // return checkPosition()
+    //response(checkPosition() + checkBattery())
+    return [checkPosition(), checkBattery()]
 }
 
 def on(){
@@ -485,8 +489,9 @@ private checkPosition() {
 }
 
 private setSomaPosition(position) {
-    log.info "Setting shade $ShadeMAC position to $position"
-    def path = "/set_shade_position/$ShadeMAC/$position"
+    def positionPercentage = position - 1
+    log.info "Setting shade $ShadeMAC position to $positionPercentage"
+    def path = "/set_shade_position/$ShadeMAC/$positionPercentage"
     log.debug "Request Path: $path"
     return sendSomaCmd(path)
 }
@@ -571,7 +576,7 @@ def sendSomaCmd(String path) {
     def LocalDevicePort = '3000'
 
     log.debug "Device ID: $device.deviceNetworkId"
-    setDniHack()
+    // setDniHack()
 
     log.debug "SOMA Connect Request Path: $path"
 
