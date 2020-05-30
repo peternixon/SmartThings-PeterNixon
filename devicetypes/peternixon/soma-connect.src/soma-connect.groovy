@@ -41,14 +41,6 @@ metadata {
         attribute "shadeList", "JSON_OBJECT"
     }
     preferences {
-        section {
-        /*
-            input("bridgeIp", "string",
-                title: "Bridge IP",
-                description: "Your Soma Connect's IP Address",
-                required: true, displayDuringSetup: true)
-         */
-         }
     }
     tiles {
         childDeviceTile("batteryLevel", "batteryLevel", height: 2, width: 2, childTileName: "batteryLevel")
@@ -68,9 +60,10 @@ def parse(description) {
           log.debug "json was null for some reason :("
     } else {
         log.debug "JSON Response: $json"
-        // {"result":"success","version":"2.0.8","shades":[{"name":"Shade Room 1","mac":"FF:FF:FF:FF:FF:FF"}]}
+        // Response should look something like {"result":"success","version":"2.0.8","shades":[{"name":"Shade Room 1","mac":"FF:FF:FF:FF:FF:FF"}]}
         if (json.result == "error") {
             log.info "ERROR Response from SOMA Connect: $json.msg"
+			return
         }
         if (json.result == "success") {
             log.info "SUCCESS Response from SOMA Connect"
@@ -97,29 +90,29 @@ def parse(description) {
                     // childDevice.generateEvent(data)
                     // childDevice.generateBatteryEvent("battery", bat_percentage)
 
-            if (json.battery_level) {
-                // The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
-                log.info "SOMA Shade Battery Level for $json.mac is: $json.battery_level"
-                
-                // def childEvent = [name:"voltage", value: json.battery_level, unit: "mV", displayed: true]
-                def bat_percentage = json.battery_level - 315
-                //sendEvent(name:"voltage", value: json.battery_level, unit: "mV", displayed: true)
-                //sendEvent(name:"battery", value: bat_percentage, unit: "%", displayed: true)
-                childDevice.createAndSendEvent([name:"voltage", value: json.battery_level, unit: "mV", displayed: true])
-                childDevice.createAndSendEvent([name:"battery", value: bat_percentage, unit: "%", displayed: true])
-                // TEST
-                // sendEvent(battery."e4:cf:3c:f1:91:4c", [name: "battery", value: "bat_percentage", unit: "%", displayed: true])
+					if (json.battery_level) {
+						// The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
+						log.info "SOMA Shade Battery Level for $json.mac is: $json.battery_level"
+						
+						// def childEvent = [name:"voltage", value: json.battery_level, unit: "mV", displayed: true]
+						def bat_percentage = json.battery_level - 315
+						//sendEvent(name:"voltage", value: json.battery_level, unit: "mV", displayed: true)
+						//sendEvent(name:"battery", value: bat_percentage, unit: "%", displayed: true)
+						childDevice.createAndSendEvent([name:"voltage", value: json.battery_level, unit: "mV", displayed: true])
+						childDevice.createAndSendEvent([name:"battery", value: bat_percentage, unit: "%", displayed: true])
+						// TEST
+						// sendEvent(battery."e4:cf:3c:f1:91:4c", [name: "battery", value: "bat_percentage", unit: "%", displayed: true])
 
-            }
-            if (json.position) {
-                // The native Soma app seems to subtract one from the returned position
-                def positionPercentage = json.position - 1
-                log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
-                // def childEvent = [name:"level", value: positionPercentage, unit: "%", displayed: true]
-                // sendEvent(name:"level", value: positionPercentage, unit: "%", displayed: true)
-                childDevice.createAndSendEvent(name:"level", value: positionPercentage, unit: "%", displayed: true)
-            }
-            //TODO: fix indent
+					}
+					if (json.position) {
+						// The native Soma app seems to subtract one from the returned position
+						def positionPercentage = json.position - 1
+						log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
+						// def childEvent = [name:"level", value: positionPercentage, unit: "%", displayed: true]
+						// sendEvent(name:"level", value: positionPercentage, unit: "%", displayed: true)
+						childDevice.createAndSendEvent(name:"level", value: positionPercentage, unit: "%", displayed: true)
+					}
+					//TODO: fix indent
             
             } else {
 				    log.debug "Child device: $json.mac was not found"
@@ -200,7 +193,6 @@ private listSomaDevices() {
 // Capability commands
 def initialize() {
     log.debug("initialize() Soma Connect with settings ${settings}")
-    // setDniHack()
     // createChildDevices()
     // TODO: response(refresh() + configure())
     return listSomaDevices()
@@ -258,8 +250,6 @@ private sendSomaCmd(String path) {
     // headers.put("HOST", getHostAddress())
     headers.put("HOST", "$host:$LocalDevicePort")
     headers.put("Accept", "application/json")
-    // headers.put("Connection", "Keep-Alive")
-    // headers.put("Keep-Alive", "max=1")
     log.debug "Request Headers: $headers"
 
     try {
@@ -276,25 +266,6 @@ private sendSomaCmd(String path) {
     }
 }
 
-private setDniHack() {
-    // log.debug "Device Network ID (DNI) Hack for $device.deviceNetworkId was triggered"
-    if (!getDataValue("bridgeIp")) {
-        log.info "Device IP needs to be configured under device settings!"
-        return
-    }
-
-    def LocalDevicePort = '3000'
-    def porthex = convertPortToHex(LocalDevicePort)
-    def hosthex = convertIPtoHex(getDataValue("bridgeIp"))
-    def newDeviceId = "$hosthex:$porthex"
-    
-    if (device.deviceNetworkId != newDeviceId) {
-        log.info "Changing Device Network ID (DNI) from $device.deviceNetworkId to $newDeviceId"
-        device.deviceNetworkId = newDeviceId
-    } else {
-       log.debug "Device Network ID (DNI) is already set to $newDeviceId"
-    }
-}
 
 private getHostAddress() {
     return convertHexToIP(bridgeIp) + ":" + convertHexToInt('3000')
