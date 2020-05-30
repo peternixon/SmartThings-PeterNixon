@@ -100,11 +100,10 @@ def parse(description) {
 						childDevice.createAndSendEvent([name:"battery", value: bat_percentage, unit: "%", displayed: true])
 					}
 					if (json.position) {
-						// The native Soma app seems to subtract one from the returned position
 						def positionPercentage = 100 - json.position // represent level as % open
 						log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
 						
-                        // Update shade state
+                        // Update child shade state
 			            if (positionPercentage == 100){
 				            childDevice.opened()
 			            } else if (positionPercentage == 0) {

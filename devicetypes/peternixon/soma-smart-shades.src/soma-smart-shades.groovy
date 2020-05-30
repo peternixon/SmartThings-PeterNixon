@@ -360,9 +360,10 @@ private String convertPortToHex(port) {
 }
 
 private setSomaPosition(percent) {
-    def positionPercentage = percent - 1
-    log.info "Setting shade " + getDataValue("shadeMac") + " position to $positionPercentage"
-    return parent.sendSomaCmd("/set_shade_position/" + getDataValue("shadeMac") + "/" + positionPercentage)
+    // Convert from percentage open to physical position value
+    def physicalPosition = 100 - percent
+    log.info "Setting shade " + getDataValue("shadeMac") + " position to $physicalPosition"
+    return parent.sendSomaCmd("/set_shade_position/" + getDataValue("shadeMac") + "/" + physicalPosition)
 }
 
 def setLevel() {
@@ -372,18 +373,18 @@ def setLevel() {
 
 def setLevel(level) {
     log.debug("Set Level (${level})")
-    if (level <  10){
-        log.debug("Less than 10")
+    if (level == 0){
         close()
-    } else if (level > 90){
+    } else if (level == 100){
         log.debug("More than 90")
         open()
     } else {
-        sendEvent(name: "windowShade", value: "opening")
+        opening()
         sendEvent(name: "level", value: level, unit: "%")
         sendEvent(name: "shadeLevel", value: level)
-        sendEvent(name: "switch", value: "on")
         setSomaPosition(level)
+        // TODO : Double check position after a delay
+        // runIn(shadeActionDelay, "checkPosition")
     }
 }
 
