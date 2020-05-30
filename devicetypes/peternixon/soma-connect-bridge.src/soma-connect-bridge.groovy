@@ -27,7 +27,7 @@
 import groovy.json.JsonSlurper
 
 metadata {
-    definition (name: "SOMA Connect",
+    definition (name: "SOMA Connect Bridge",
         namespace: "peternixon",
         author: "Peter Nixon"
     )
