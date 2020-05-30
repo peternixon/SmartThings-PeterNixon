@@ -262,7 +262,7 @@ def close() {
 def pause() {
     log.debug "Pause triggered"
     runIn(2, "partiallyOpen")
-    runIn(3, "parent.checkPosition")
+    runIn(3, "refresh")
     return parent.sendSomaCmd("/stop_shade/" + getDataValue("shadeMac"))
 }
 

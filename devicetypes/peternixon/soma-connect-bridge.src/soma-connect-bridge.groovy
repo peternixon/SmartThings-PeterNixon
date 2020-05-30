@@ -103,7 +103,16 @@ def parse(description) {
 						// The native Soma app seems to subtract one from the returned position
 						def positionPercentage = 100 - json.position // represent level as % open
 						log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
-						childDevice.createAndSendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
+						
+                        // Update shade state
+			            if (positionPercentage == 100){
+				            childDevice.opened()
+			            } else if (positionPercentage == 0) {
+				            childDevice.closed()
+            			} else {
+                            childDevice.createAndSendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
+                            childDevice.partiallyOpen()
+            			}
 					}
             } else {
                     log.info "$json.mac was not found on a currently configured child device! Rescan triggered"
