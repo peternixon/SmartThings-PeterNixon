@@ -80,7 +80,7 @@ def parse(description) {
           log.debug "json was null for some reason :("
     } else {
         log.debug "JSON Response: $json"
-        // Response should look something like {"result":"success","version":"2.0.8","shades":[{"name":"Shade Room 1","mac":"FF:FF:FF:FF:FF:FF"}]}
+        // Response should look something like {"result":"success","version":"2.0.12","shades":[{"name":"Shade Room 1","mac":"FF:FF:FF:FF:FF:FF"}]}
         if (json.result == "error") {
             log.info "ERROR Response from SOMA Connect: $json.msg"
         }
@@ -105,22 +105,23 @@ def parse(description) {
 			    if (childDevice) {
             	    log.debug "Will sending event to Child device: $childDevice"
 
-            if (json.battery_level) {
-                // The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
-                log.info "SOMA Shade Battery Level for $json.mac is: $json.battery_level"
-                def bat_percentage = json.battery_level - 315
-                childDevice.createAndSendEvent([name:"voltage", value: json.battery_level, unit: "mV", displayed: true])
-                childDevice.createAndSendEvent([name:"battery", value: bat_percentage, unit: "%", displayed: true])
-            }
-            if (json.position) {
-                // The native Soma app seems to subtract one from the returned position
-                def positionPercentage = 100 - json.position // represent level as % open
-                log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
-                childDevice.createAndSendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
-            }
+					if (json.battery_level) {
+						// The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
+						log.info "SOMA Shade Battery Level for $json.mac is: $json.battery_level"
+						def bat_percentage = json.battery_level - 315
+						childDevice.createAndSendEvent([name:"voltage", value: json.battery_level, unit: "mV", displayed: true])
+						childDevice.createAndSendEvent([name:"battery", value: bat_percentage, unit: "%", displayed: true])
+					}
+					if (json.position) {
+						// The native Soma app seems to subtract one from the returned position
+						def positionPercentage = 100 - json.position // represent level as % open
+						log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
+						childDevice.createAndSendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
+					}
             
             } else {
 				    log.debug "Child device: $json.mac was not found"
+					// TODO: Probably should trigger a rescan of the bridge at this point.
                     return
 			    }
             }
