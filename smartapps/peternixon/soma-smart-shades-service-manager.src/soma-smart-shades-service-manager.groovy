@@ -197,8 +197,8 @@ def initialize() {
         //def childDevice = addChildDevice("sc", "HTTP Switch", deviceId, null, [label: shadeLabel])
         // DeviceWrapper addChildDevice(String namespace, String typeName, String deviceNetworkId, hubId, Map properties)
         //def childDevice = addChildDevice("peternixon", "SOMA Smart Shades", deviceId, '10cfeea2-eda5-472f-a704-10c7a86a5781', [label: shadeLabel])
-        def childDevice = addChildDevice("peternixon", "SOMA Connect", deviceId, '10cfeea2-eda5-472f-a704-10c7a86a5781', [
-				"label": shadeLabel,
+        def childDevice = addChildDevice("peternixon", "SOMA Connect Bridge", deviceId, '10cfeea2-eda5-472f-a704-10c7a86a5781', [
+				"label": "SOMA Connect",
 				"data": [
                     "bridgeIp": bridgeIp,
 					"bridgePort": bridgePort
