@@ -37,19 +37,6 @@ metadata {
         // capability "Polling"
         capability "Refresh"
         
-        capability "Actuator"
-        capability "Battery"
-        capability "Momentary"
-        capability "Polling"
-        capability "Refresh"
-        capability "Sensor"
-        capability "Switch"
-        capability "Switch Level"
-        capability "Window Shade"
-        capability "Window Shade Level"
-        // capability "Window Shade Preset"
-        capability "Voltage Measurement"
-        
         attribute "shadeCount", "string"
         attribute "shadeList", "JSON_OBJECT"
     }
@@ -63,7 +50,7 @@ metadata {
         childDeviceTile("BatteryVoltage", "BatteryVoltage", height: 2, width: 2, childTileName: "BatteryVoltage")
     }
     main "shadeLevel"
-    details(["windowShade",
+    details(["shadeLevel",
              "batteryLevel",
              "BatteryVoltage"
             ])
@@ -96,14 +83,14 @@ def parse(description) {
                 createChildDevices(json.shades)
             }
             if (json.mac) {
-                log.debug "My client devices are: $childDevices"
+                log.debug "My attached (child) devices are: $childDevices"
                 def childDevice = childDevices.find {
 				    // it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.sourceEndpoint}" || it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.endpoint}"
                     it.deviceNetworkId == json.mac
                     //it.sendEvent(childEvent)
 			    }
 			    if (childDevice) {
-            	    log.debug "Will sending event to Child device: $childDevice"
+            	    log.debug "Event is for child device: $childDevice"
 
 					if (json.battery_level) {
 						// The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
@@ -118,14 +105,11 @@ def parse(description) {
 						log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
 						childDevice.createAndSendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
 					}
-            
             } else {
-				    log.debug "Child device: $json.mac was not found"
-					// TODO: Probably should trigger a rescan of the bridge at this point.
-                    return
+                    log.info "$json.mac was not found on a currently configured child device! Rescan triggered"
+                    return listSomaDevices()
 			    }
             }
-            
         }
     }
 }
@@ -180,7 +164,6 @@ private listSomaDevices() {
     // log.debug "Request Path: $path"
     return sendSomaCmd(path)
 }
-
 
 // Capability commands
 def initialize() {
@@ -238,11 +221,9 @@ private sendSomaCmd(String path) {
     def LocalDevicePort = getDataValue("bridgePort")
 
     def headers = [:] 
-    // headers.put("HOST", getHostAddress())
-    headers.put("HOST", "$host:$LocalDevicePort")
+    headers.put("HOST", getHostAddress())
+    // headers.put("HOST", "$host:$LocalDevicePort")
     headers.put("Accept", "application/json")
-    // headers.put("Connection", "Keep-Alive")
-    // headers.put("Keep-Alive", "max=1")
     log.debug "Request Headers: $headers"
 
     try {
@@ -260,7 +241,7 @@ private sendSomaCmd(String path) {
 }
 
 private getHostAddress() {
-    return convertHexToIP(bridgeIp) + ":" + convertHexToInt('3000')
+    return convertHexToIP(getDataValue("bridgeIp")) + ":" + convertHexToInt(getDataValue("bridgePort"))
 }
 
 private Integer convertHexToInt(hex) {

@@ -40,26 +40,17 @@ metadata {
     {
         capability "Actuator"
         capability "Battery"
-        capability "Momentary"
+        // capability "Momentary"
         capability "Polling"
         capability "Refresh"
         capability "Sensor"
         capability "Switch"
         capability "Switch Level"
+        capability "Voltage Measurement"
         capability "Window Shade"
         capability "Window Shade Level"
-        // capability "Window Shade Preset"
-        capability "Voltage Measurement"
+        capability "Window Shade Preset"
         
-        // Commands to use in the simulator
-        command "openPartially"
-        command "closePartially"
-        command "partiallyOpen"
-        command "opening"
-        command "closing"
-        command "opened"
-        command "closed"
-        command "levelOpenClose"
     }
     preferences {
         section {
@@ -181,17 +172,11 @@ metadata {
 
         main "windowShade"
         details(["windowShade",
-                 // "commandsLabel",
-                 // "windowShadeOpen", "windowShadeClose", "windowShadePause", "windowShadePreset", "blank", "blank",
-                 // "statesLabel",
-                 // "windowShadePartiallyOpen", "windowShadeOpening", "windowShadeClosing", "windowShadeOpened", "windowShadeClosed", "windowShadeUnknown",
-                 // "levelSlider",
-                 // "battery"
+                 "windowShadePreset",
                  "batteryLevel", "BatteryVoltage",
                  "shadeLevel",
                  "refresh"
                  ])
-
     }
 
 }
@@ -240,16 +225,11 @@ def parse(description) {
 
 def refresh() {
     log.info "Device ID: $device.deviceNetworkId refresh() was triggered"
-    // parent.refresh(device.deviceNetworkId)
     return [parent.checkPosition(getDataValue("shadeMac")), parent.checkBattery(getDataValue("shadeMac"))]
 }
 
 def poll() {
     log.info "Device ID: $device.deviceNetworkId poll() was triggered"
-    //return checkBattery()
-    // return checkPosition()
-    //response(checkPosition() + checkBattery())
-    // return [checkPosition(), checkBattery()]
     return [parent.checkPosition(getDataValue("shadeMac")), parent.checkBattery(getDataValue("shadeMac"))]
 }
 
@@ -273,7 +253,7 @@ def open() {
 
 def close() {
     log.debug "Close triggered"
-    //closing()
+    closing()
     runIn(shadeActionDelay, "closed")
     //closed()
     return parent.sendSomaCmd("/close_shade/" + getDataValue("shadeMac"))
@@ -286,15 +266,10 @@ def pause() {
     return parent.sendSomaCmd("/stop_shade/" + getDataValue("shadeMac"))
 }
 
-def setShadeLevel() {
-    log.debug "Executing 'setShadeLevel'"
-    // TODO: handle 'setShadeLevel' command
-}
-
 def presetPosition() {
     log.debug "presetPosition()"
-    /// TODO Make this work...
-    // sendSomaCmd("/set_shade_position/"MAC"/"position")
+    setSomaPosition(preset ?: state.preset ?: 50)
+
     if (device.currentValue("windowShade") == "open") {
         closePartially()
     } else if (device.currentValue("windowShade") == "closed") {
@@ -303,8 +278,6 @@ def presetPosition() {
         partiallyOpen()
     }
 }
-
-// Custom test commands
 
 def openPartially() {
     log.debug "openPartially()"
@@ -362,30 +335,6 @@ def levelOpenClose(level) {
     }
 }
 
-// gets the address of the Hub
-private getCallBackAddress() {
-    return device.hub.getDataValue("localIP") + ":" + device.hub.getDataValue("localSrvPortTCP")
-}
-
-// gets the address of the device
-private getHostAddressOriginal() {
-    def ip = getDataValue("ip")
-    def port = getDataValue("port")
-
-    if (!ip || !port) {
-        def parts = device.deviceNetworkId.split(":")
-        if (parts.length == 2) {
-            ip = parts[0]
-            port = parts[1]
-        } else {
-            log.warn "Can't figure out ip and port for device: ${device.id}"
-        }
-    }
-
-    log.debug "Using IP: $ip and port: $port for device: ${device.id}"
-    return convertHexToIP(ip) + ":" + convertHexToInt(port)
-}
-
 private getHostAddress() {
     return convertHexToIP(DeviceIP) + ":" + convertHexToInt('3000')
 }
@@ -410,13 +359,10 @@ private String convertPortToHex(port) {
     return hexport
 }
 
-
-private setSomaPosition(position) {
-    def positionPercentage = position - 1
-    log.info "Setting shade $ShadeMAC position to $positionPercentage"
-    def path = "/set_shade_position/$ShadeMAC/$positionPercentage"
-    log.debug "Request Path: $path"
-    return sendSomaCmd(path)
+private setSomaPosition(percent) {
+    def positionPercentage = percent - 1
+    log.info "Setting shade " + getDataValue("shadeMac") + " position to $positionPercentage"
+    return parent.sendSomaCmd("/set_shade_position/" + getDataValue("shadeMac") + "/" + positionPercentage)
 }
 
 def setLevel() {
@@ -433,32 +379,11 @@ def setLevel(level) {
         log.debug("More than 90")
         open()
     } else {
-        /*
-        def moveTime = timeToLevel(level)
-        def currLevel = device.currentState("level")?.value.toInteger()
-        if (moveTime > 2){
-            // reduce time by 1 second to account for delay
-            moveTime = moveTime - 1
-            log.debug("Scheduling move for: ${moveTime}")
-            if (currLevel > level){
-                parent.childClose(device.deviceNetworkId)
-                runIn(moveTime, stop)
-            } else {
-                parent.childOpen(device.deviceNetworkId)
-                runIn(moveTime, stop)
-            } 
-            sendEvent(name: "windowShade", value: "opening")
-            sendEvent(name: "switch", value: "on")
-            sendEvent(name: "level", value: level, unit: "%")
-            // runIn(moveTime, updateState, [overwrite: false, data: [name: "windowShade", value: "partially open"]])
-        }
-        */
-        
-            sendEvent(name: "windowShade", value: "opening")
-            sendEvent(name: "level", value: level, unit: "%")
-            sendEvent(name: "shadeLevel", value: level)
-            sendEvent(name: "switch", value: "on")
-            setSomaPosition(level)
+        sendEvent(name: "windowShade", value: "opening")
+        sendEvent(name: "level", value: level, unit: "%")
+        sendEvent(name: "shadeLevel", value: level)
+        sendEvent(name: "switch", value: "on")
+        setSomaPosition(level)
     }
 }
 
@@ -467,64 +392,17 @@ def setLevel(level, rate) {
     setLevel(level)
 }
 
-
-def setShadeLevelX(shadeNo, percent) {
-    log.debug "Setting Shade level on Shade ${shadeNo} to ${percent}%"
-    def shadeValue = 255 - (percent * 2.55).toInteger()
-    log.debug "Setting Shade level on Shade ${shadeNo} to ${shadeValue} value"
-    def msg = String.format("\$pss%s-04-%03d",shadeNo,shadeValue)
-    sendMessage(["msg":msg])
-    runIn(1, "sendMessage", [overwrite: false, data:["msg":"\$rls"]])
-}
-
-
-
-// Send SOMA Connect HTTP API commands
-def sendSomaCmd(String path) {
-    def host = DeviceIP
-    def LocalDevicePort = '3000'
-
-    log.debug "Device ID: $device.deviceNetworkId"
-    // setDniHack()
-
-    log.debug "SOMA Connect Request Path: $path"
-
-    def headers = [:] 
-    // headers.put("HOST", getHostAddress())
-    headers.put("HOST", "$host:$LocalDevicePort")
-    headers.put("Accept", "application/json")
-    headers.put("Connection", "Keep-Alive")
-    headers.put("Keep-Alive", "max=1")
-    log.debug "Request Headers: $headers"
-
-    try {
-        def result = new physicalgraph.device.HubAction(
-            method: "GET",
-            path: path,
-            headers: headers
-            )
-        log.debug "Hub Action: $result"
-        return result
-    }
-    catch (Exception e) {
-        log.debug "Hit Exception $e on $result"
-    }
-}
-
-def generateEvent(Map results) {
-  results.each { name, value ->
-    sendEvent(name: name, value: value)
-  }
-  return null
-}
-
-def generateBatteryEvent(name,value) {
-    sendEvent(name: name, value: value)
-    return null
-}
-
+// Used by parent DTH to relay events from Soma Connect to this device
 def createAndSendEvent(map) {
-	log.debug "sendEvent($map)"
+	log.debug "Received event via parent DTH: $map)"
 	sendEvent(map)
     map
+}
+
+// Currently unused. Check if this is useful.
+def generateEvent(Map results) {
+    results.each { name, value ->
+        sendEvent(name: name, value: value)
+    }
+    return null
 }
