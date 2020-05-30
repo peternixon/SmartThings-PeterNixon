@@ -37,24 +37,36 @@ metadata {
         // capability "Polling"
         capability "Refresh"
         
+        capability "Actuator"
+        capability "Battery"
+        capability "Momentary"
+        capability "Polling"
+        capability "Refresh"
+        capability "Sensor"
+        capability "Switch"
+        capability "Switch Level"
+        capability "Window Shade"
+        capability "Window Shade Level"
+        // capability "Window Shade Preset"
+        capability "Voltage Measurement"
+        
         attribute "shadeCount", "string"
         attribute "shadeList", "JSON_OBJECT"
     }
     preferences {
         section {
-        /*
-            input("bridgeIp", "string",
-                title: "Bridge IP",
-                description: "Your Soma Connect's IP Address",
-                required: true, displayDuringSetup: true)
-         */
          }
     }
     tiles {
+        childDeviceTile("shadeLevel", "shadeLevel", height: 2, width: 2, childTileName: "shadeLevel")
         childDeviceTile("batteryLevel", "batteryLevel", height: 2, width: 2, childTileName: "batteryLevel")
         childDeviceTile("BatteryVoltage", "BatteryVoltage", height: 2, width: 2, childTileName: "BatteryVoltage")
-        childDeviceTile("shadeLevel", "shadeLevel", height: 2, width: 2, childTileName: "shadeLevel")
     }
+    main "shadeLevel"
+    details(["windowShade",
+             "batteryLevel",
+             "BatteryVoltage"
+            ])
 }
 
 // parse events into attributes
@@ -68,14 +80,14 @@ def parse(description) {
           log.debug "json was null for some reason :("
     } else {
         log.debug "JSON Response: $json"
-        // {"result":"success","version":"2.0.8","shades":[{"name":"Shade Room 1","mac":"FF:FF:FF:FF:FF:FF"}]}
+        // Response should look something like {"result":"success","version":"2.0.8","shades":[{"name":"Shade Room 1","mac":"FF:FF:FF:FF:FF:FF"}]}
         if (json.result == "error") {
             log.info "ERROR Response from SOMA Connect: $json.msg"
         }
         if (json.result == "success") {
             log.info "SUCCESS Response from SOMA Connect"
+            // response from list_devices
             if (json.shades) {
-                // response from list_devices
                 def shadeCount = json.shades.size()
                 def shadeList = json.shades
                 log.debug "$shadeCount SOMA Shades exist.."
@@ -92,34 +104,20 @@ def parse(description) {
 			    }
 			    if (childDevice) {
             	    log.debug "Will sending event to Child device: $childDevice"
-                    //return childDevice.createEvent(childDevice.createAndSendEvent(eventMap))
-                    // return childDevice.SendEvent(name:"battery", value: bat_percentage, unit: "%", displayed: true)
-                    // childDevice.generateEvent(data)
-                    // childDevice.generateBatteryEvent("battery", bat_percentage)
 
             if (json.battery_level) {
                 // The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
                 log.info "SOMA Shade Battery Level for $json.mac is: $json.battery_level"
-                
-                // def childEvent = [name:"voltage", value: json.battery_level, unit: "mV", displayed: true]
                 def bat_percentage = json.battery_level - 315
-                //sendEvent(name:"voltage", value: json.battery_level, unit: "mV", displayed: true)
-                //sendEvent(name:"battery", value: bat_percentage, unit: "%", displayed: true)
                 childDevice.createAndSendEvent([name:"voltage", value: json.battery_level, unit: "mV", displayed: true])
                 childDevice.createAndSendEvent([name:"battery", value: bat_percentage, unit: "%", displayed: true])
-                // TEST
-                // sendEvent(battery."e4:cf:3c:f1:91:4c", [name: "battery", value: "bat_percentage", unit: "%", displayed: true])
-
             }
             if (json.position) {
                 // The native Soma app seems to subtract one from the returned position
-                def positionPercentage = json.position - 1
+                def positionPercentage = 100 - json.position // represent level as % open
                 log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
-                // def childEvent = [name:"level", value: positionPercentage, unit: "%", displayed: true]
-                // sendEvent(name:"level", value: positionPercentage, unit: "%", displayed: true)
-                childDevice.createAndSendEvent(name:"level", value: positionPercentage, unit: "%", displayed: true)
+                childDevice.createAndSendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
             }
-            //TODO: fix indent
             
             } else {
 				    log.debug "Child device: $json.mac was not found"
@@ -129,12 +127,6 @@ def parse(description) {
             
         }
     }
-    
-    // TODO: handle 'battery' attribute
-    // TODO: handle 'windowShade' attribute
-    // TODO: handle 'supportedWindowShadeCommands' attribute
-    // TODO: handle 'shadeLevel' attribute
-
 }
 
 
@@ -149,21 +141,16 @@ private void createChildDevices(shades) {
         // Add child devices for shades attached to the SOMA Connect
         for (i in 1..shadeCount) {
             def x = (i - 1)
-
-            // log.debug("JSON I got XX: $shades")
-            // log.debug("Processing child device AA: ${shades[0]['name']} with MAC ${shades[0]['mac']}")
             log.debug("Processing child device: ${shades[x]['name']} with MAC ${shades[x]['mac']}")
             def childDni = "${shades[x]['mac']}"
-            //def existing = getChildDevice(childDni)
-            //if (!existing) {
-
-                // addChildDevice("Soma Smart Shades", "${device.deviceNetworkId}-${i}", null,[completedSetup: true, label: "${device.displayName} (Shade ${i})", isComponent: true, componentName: "ch$i", componentLabel: "Channel $i"])
+            def existing = getChildDevice(childDni)
+            if (!existing) {
                 def childDevice = addChildDevice("Soma Smart Shades",
                     childDni,
                     null,
                     [
                     completedSetup: true,
-                    "label": "Shade ${shades[x]['name']} (${device.displayName})",
+                    "label": "${shades[x]['name']} shade",
                     "data": [
                         "shadeName": "${shades[x]['name']}",
                         "shadeMac": "${shades[x]['mac']}",
@@ -175,17 +162,14 @@ private void createChildDevices(shades) {
                     componentLabel: "Channel $i"
                     ])
             
-                //def childDevice = addChildDevice("sc", "HTTP Switch", deviceId, null, [label: switchLabel])
-                //def childDevice = addChildDevice("peternixon", "SOMA Smart Shades Battery", childDni, '10cfeea2-eda5-472f-a704-10c7a86a5781', [label: switchLabel])
-                // childDevice = addChildDevice("blahNamespace", "BlahDeviceType", childDni, null, [name:"TestName", label:name])
                 childDevice.take()
                 log.debug "created ${childDevice.displayName} with id $childDni"
-            //} else {
-            //    log.debug "Device $childDni already created"
-            //}            
+            } else {
+                log.debug "Child Device $childDni already exisits.."
+            }            
         }
     } else {
-        log.debug "Didn't create any child shades as shade count is: $shadeCount"
+        log.debug "There don't appear to be any shades currently attached to ${device.displayName}"
     }
 }
 
@@ -200,8 +184,6 @@ private listSomaDevices() {
 // Capability commands
 def initialize() {
     log.debug("initialize() Soma Connect with settings ${settings}")
-    // setDniHack()
-    // createChildDevices()
     // TODO: response(refresh() + configure())
     return listSomaDevices()
 }
@@ -273,26 +255,6 @@ private sendSomaCmd(String path) {
     }
     catch (Exception e) {
         log.debug "Hit Exception $e on $result"
-    }
-}
-
-private setDniHack() {
-    // log.debug "Device Network ID (DNI) Hack for $device.deviceNetworkId was triggered"
-    if (!getDataValue("bridgeIp")) {
-        log.info "Device IP needs to be configured under device settings!"
-        return
-    }
-
-    def LocalDevicePort = '3000'
-    def porthex = convertPortToHex(LocalDevicePort)
-    def hosthex = convertIPtoHex(getDataValue("bridgeIp"))
-    def newDeviceId = "$hosthex:$porthex"
-    
-    if (device.deviceNetworkId != newDeviceId) {
-        log.info "Changing Device Network ID (DNI) from $device.deviceNetworkId to $newDeviceId"
-        device.deviceNetworkId = newDeviceId
-    } else {
-       log.debug "Device Network ID (DNI) is already set to $newDeviceId"
     }
 }
 
