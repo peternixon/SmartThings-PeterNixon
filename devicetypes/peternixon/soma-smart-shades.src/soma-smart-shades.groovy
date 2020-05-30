@@ -24,7 +24,7 @@
 * 
 */
 
-// import groovy.json.JsonOutput
+import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
 metadata {
@@ -63,18 +63,6 @@ metadata {
     }
     preferences {
         section {
-            input("DeviceIP", "string",
-                title: "Device IP Address",
-                description: "Please enter your device's IP Address",
-                required: true, displayDuringSetup: true)
-         }
-        section {
-            input("ShadeMAC", "string",
-                title: "Shade MAC Address",
-                description: "Shade MAC Address",
-                displayDuringSetup: true)
-        }
-        section {
             input("actionDelay", "number",
                 title: "Action Delay\n\nAn emulation for how long it takes the window shade to perform the requested action.",
                 description: "In seconds (1-120; default if empty: 5 sec)",
@@ -99,9 +87,6 @@ metadata {
                 ]
             )
         }
-        // section() {
-        //    input "thebattery", "capability.battery"
-        // }
     }
 
 
@@ -240,7 +225,6 @@ def installed() {
 
 def updated() {
     log.debug "updated()"
-    // setDniHack()
     def commands = (settings.supportedCommands != null) ? settings.supportedCommands : "2"
     sendEvent(name: "supportedWindowShadeCommands", value: JsonOutput.toJson(supportedCommandsMap[commands]))
 }
@@ -250,63 +234,14 @@ def parse(description) {
     log.debug "Parsing Event: '${description}'"
     def msg = parseLanMessage(description)
     log.debug "Parsed Message: '${msg}'"
-
-    def headersAsString = msg.header // => headers as a string
-    // def headerMap = msg.headers      // => headers as a Map
-    // def body = msg.body              // => request body as a string
-    // def status = msg.status          // => http status code of the response
-    def json = msg.json              // => any JSON included in response body, as a data structure of lists and maps
-    //def xml = msg.xml                // => any XML included in response body, as a document tree structure
-    //def data = msg.data              // => either JSON or XML in response body (whichever is specified by content-type header in response)
-
-
-  if (!json) {
-        log.debug "json was null for some reason :("
-    } else {
-        log.debug "JSON Response: $json"
-        if (json.result == "error") {
-            log.info "ERROR Response from SOMA Connect: $json.msg"
-        }
-        if (json.result == "success") {
-            log.info "SUCCESS Response from SOMA Connect"
-            if (json.battery_level) {
-                // The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
-                log.info "SOMA Shade Battery Level: $json.battery_level"
-                
-                def bat_percentage = json.battery_level - 315
-                sendEvent(name:"voltage", value: json.battery_level, unit: "mV", displayed: true)
-                sendEvent(name:"battery", value: bat_percentage, unit: "%", displayed: true)
-            }
-            if (json.position) {
-                // The native Soma app seems to subtract one from the returned position
-                def positionPercentage = json.position - 1
-                log.info "SOMA Shade Position: $positionPercentage"
-                sendEvent(name:"level", value: positionPercentage, unit: "%", displayed: true)
-            }
-        }
-    }
-
-    // TODO: handle 'battery' attribute
-    // TODO: handle 'windowShade' attribute
-    // TODO: handle 'supportedWindowShadeCommands' attribute
-    // TODO: handle 'shadeLevel' attribute
-    
-    // Dummy battery value
-    // def batteryValue = 12
-    // results << createEvent(name: "battery", value: batteryValue, unit: "%", descriptionText: "{{ device.displayName }} battery was {{ value }}%", translatable: true)
-    // log.debug "parse returned $results"
-    // return results
 }
 
 // Capability commands
 
 def refresh() {
     log.info "Device ID: $device.deviceNetworkId refresh() was triggered"
-    runIn(1, "checkPosition")
-    // return checkPosition()
-    //checkPosition()
-    //return checkBattery()
-    return [checkPosition(), checkBattery()]
+    // parent.refresh(device.deviceNetworkId)
+    return [parent.checkPosition(getDataValue("shadeMac")), parent.checkBattery(getDataValue("shadeMac"))]
 }
 
 def poll() {
@@ -314,7 +249,8 @@ def poll() {
     //return checkBattery()
     // return checkPosition()
     //response(checkPosition() + checkBattery())
-    return [checkPosition(), checkBattery()]
+    // return [checkPosition(), checkBattery()]
+    return [parent.checkPosition(getDataValue("shadeMac")), parent.checkBattery(getDataValue("shadeMac"))]
 }
 
 def on(){
@@ -332,7 +268,7 @@ def open() {
     //opening()
     runIn(shadeActionDelay, "opened")
     //opened()
-    return sendSomaCmd("/open_shade/" + ShadeMAC)
+    return parent.sendSomaCmd("/open_shade/" + getDataValue("shadeMac"))
 }
 
 def close() {
@@ -340,14 +276,14 @@ def close() {
     //closing()
     runIn(shadeActionDelay, "closed")
     //closed()
-    return sendSomaCmd("/close_shade/" + ShadeMAC)
+    return parent.sendSomaCmd("/close_shade/" + getDataValue("shadeMac"))
 }
 
 def pause() {
     log.debug "Pause triggered"
     runIn(2, "partiallyOpen")
-    runIn(3, "checkPosition")
-    return sendSomaCmd("/stop_shade/" + ShadeMAC)
+    runIn(3, "parent.checkPosition")
+    return parent.sendSomaCmd("/stop_shade/" + getDataValue("shadeMac"))
 }
 
 def setShadeLevel() {
@@ -474,19 +410,6 @@ private String convertPortToHex(port) {
     return hexport
 }
 
-private checkBattery() {
-    log.info "Checking shade $ShadeMAC battery level.."
-    def path = "/get_battery_level/$ShadeMAC"
-    log.debug "Request Path: $path"
-    return sendSomaCmd(path)
-}
-
-private checkPosition() {
-    log.info "Checking shade $ShadeMAC position.."
-    def path = "/get_shade_state/$ShadeMAC"
-    log.debug "Request Path: $path"
-    return sendSomaCmd(path)
-}
 
 private setSomaPosition(position) {
     def positionPercentage = position - 1
@@ -555,20 +478,6 @@ def setShadeLevelX(shadeNo, percent) {
 }
 
 
-private setDniHack() {
-    log.info "Device ID Hack for $device.deviceNetworkId was triggered"
-    if (DeviceIP) {
-        def LocalDevicePort = '3000'
-        def porthex = convertPortToHex(LocalDevicePort)
-        def hosthex = convertIPtoHex(DeviceIP)
-    
-        device.deviceNetworkId = "$hosthex:$porthex"
-        log.info "New Device ID: $device.deviceNetworkId"
-    } else {
-        log.info "Device IP needs to be configured under device settings!"
-    }
-    
-}
 
 // Send SOMA Connect HTTP API commands
 def sendSomaCmd(String path) {
@@ -600,4 +509,22 @@ def sendSomaCmd(String path) {
     catch (Exception e) {
         log.debug "Hit Exception $e on $result"
     }
+}
+
+def generateEvent(Map results) {
+  results.each { name, value ->
+    sendEvent(name: name, value: value)
+  }
+  return null
+}
+
+def generateBatteryEvent(name,value) {
+    sendEvent(name: name, value: value)
+    return null
+}
+
+def createAndSendEvent(map) {
+	log.debug "sendEvent($map)"
+	sendEvent(map)
+    map
 }

@@ -42,10 +42,12 @@ metadata {
     }
     preferences {
         section {
+        /*
             input("bridgeIp", "string",
                 title: "Bridge IP",
                 description: "Your Soma Connect's IP Address",
                 required: true, displayDuringSetup: true)
+         */
          }
     }
     tiles {
@@ -73,6 +75,7 @@ def parse(description) {
         if (json.result == "success") {
             log.info "SUCCESS Response from SOMA Connect"
             if (json.shades) {
+                // response from list_devices
                 def shadeCount = json.shades.size()
                 def shadeList = json.shades
                 log.debug "$shadeCount SOMA Shades exist.."
@@ -80,40 +83,58 @@ def parse(description) {
                 sendEvent(name: "shadeList", value: shadeList, isStateChange: true)
                 createChildDevices(json.shades)
             }
-            if (json.battery_level) {
-                // The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
-                log.info "SOMA Shade Battery Level: $json.battery_level"
-                
-                def bat_percentage = json.battery_level - 315
-                sendEvent(name:"voltage", value: json.battery_level, unit: "mV", displayed: true)
-                sendEvent(name:"battery", value: bat_percentage, unit: "%", displayed: true)
-                
-                // TEST
-                // sendEvent(battery."e4:cf:3c:f1:91:4c", [name: "battery", value: "bat_percentage", unit: "%", displayed: true])
-                
-                
+            if (json.mac) {
+                log.debug "My client devices are: $childDevices"
                 def childDevice = childDevices.find {
 				    // it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.sourceEndpoint}" || it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.endpoint}"
-                    it.deviceNetworkId == "e4:cf:3c:f1:91:4c"
+                    it.deviceNetworkId == json.mac
+                    //it.sendEvent(childEvent)
 			    }
 			    if (childDevice) {
-            	    log.debug "XXX parse($childDevice)"
+            	    log.debug "Will sending event to Child device: $childDevice"
                     //return childDevice.createEvent(childDevice.createAndSendEvent(eventMap))
-                    return childDevice.SendEvent(name:"battery", value: bat_percentage, unit: "%", displayed: true)
-			    } else {
-				    log.debug "Child device: e4:cf:3c:f1:91:4c was not found"
-			    }
-            
-            
+                    // return childDevice.SendEvent(name:"battery", value: bat_percentage, unit: "%", displayed: true)
+                    // childDevice.generateEvent(data)
+                    // childDevice.generateBatteryEvent("battery", bat_percentage)
+
+            if (json.battery_level) {
+                // The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
+                log.info "SOMA Shade Battery Level for $json.mac is: $json.battery_level"
+                
+                // def childEvent = [name:"voltage", value: json.battery_level, unit: "mV", displayed: true]
+                def bat_percentage = json.battery_level - 315
+                //sendEvent(name:"voltage", value: json.battery_level, unit: "mV", displayed: true)
+                //sendEvent(name:"battery", value: bat_percentage, unit: "%", displayed: true)
+                childDevice.createAndSendEvent([name:"voltage", value: json.battery_level, unit: "mV", displayed: true])
+                childDevice.createAndSendEvent([name:"battery", value: bat_percentage, unit: "%", displayed: true])
+                // TEST
+                // sendEvent(battery."e4:cf:3c:f1:91:4c", [name: "battery", value: "bat_percentage", unit: "%", displayed: true])
+
             }
             if (json.position) {
                 // The native Soma app seems to subtract one from the returned position
                 def positionPercentage = json.position - 1
-                log.info "SOMA Shade Position: $positionPercentage"
-                sendEvent(name:"level", value: positionPercentage, unit: "%", displayed: true)
+                log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
+                // def childEvent = [name:"level", value: positionPercentage, unit: "%", displayed: true]
+                // sendEvent(name:"level", value: positionPercentage, unit: "%", displayed: true)
+                childDevice.createAndSendEvent(name:"level", value: positionPercentage, unit: "%", displayed: true)
             }
+            //TODO: fix indent
+            
+            } else {
+				    log.debug "Child device: $json.mac was not found"
+                    return
+			    }
+            }
+            
         }
     }
+    
+    // TODO: handle 'battery' attribute
+    // TODO: handle 'windowShade' attribute
+    // TODO: handle 'supportedWindowShadeCommands' attribute
+    // TODO: handle 'shadeLevel' attribute
+
 }
 
 
@@ -137,8 +158,23 @@ private void createChildDevices(shades) {
             //if (!existing) {
 
                 // addChildDevice("Soma Smart Shades", "${device.deviceNetworkId}-${i}", null,[completedSetup: true, label: "${device.displayName} (Shade ${i})", isComponent: true, componentName: "ch$i", componentLabel: "Channel $i"])
-                def childDevice = addChildDevice("Soma Smart Shades", childDni, null,[completedSetup: true, label: "${device.displayName} (Shade ${shades[x]['name']})", isComponent: false, componentName: "ch$i", componentLabel: "Channel $i"])
-
+                def childDevice = addChildDevice("Soma Smart Shades",
+                    childDni,
+                    null,
+                    [
+                    completedSetup: true,
+                    "label": "Shade ${shades[x]['name']} (${device.displayName})",
+                    "data": [
+                        "shadeName": "${shades[x]['name']}",
+                        "shadeMac": "${shades[x]['mac']}",
+                        "bridgeIp": getDataValue("bridgeIp"),
+					    "bridgePort": getDataValue("bridgePort"),
+				    ],
+                    isComponent: false,
+                    componentName: "ch$i",
+                    componentLabel: "Channel $i"
+                    ])
+            
                 //def childDevice = addChildDevice("sc", "HTTP Switch", deviceId, null, [label: switchLabel])
                 //def childDevice = addChildDevice("peternixon", "SOMA Smart Shades Battery", childDni, '10cfeea2-eda5-472f-a704-10c7a86a5781', [label: switchLabel])
                 // childDevice = addChildDevice("blahNamespace", "BlahDeviceType", childDni, null, [name:"TestName", label:name])
@@ -164,11 +200,7 @@ private listSomaDevices() {
 // Capability commands
 def initialize() {
     log.debug("initialize() Soma Connect with settings ${settings}")
-    if (!bridgeIp) {
-        log.info "Device IP needs to be configured under device settings!"
-        return
-    }
-    setDniHack()
+    // setDniHack()
     // createChildDevices()
     // TODO: response(refresh() + configure())
     return listSomaDevices()
@@ -201,20 +233,26 @@ def poll() {
     return initialize()
 }
 
+// TODO
+def sync(ip, port) {
+	def existingIp = getDataValue("ip")
+	def existingPort = getDataValue("port")
+	if (ip && ip != existingIp) {
+		updateDataValue("ip", ip)
+	}
+	if (port && port != existingPort) {
+		updateDataValue("port", port)
+	}
+}
+
 /**@
  * Send SOMA Connect HTTP API commands
  */
 private sendSomaCmd(String path) {
     log.debug "sendSomaCmd() triggered for DNI: $device.deviceNetworkId with path $path"
-    if (!bridgeIp) {
-        log.error "Device IP needs to be configured under device settings!"
-        return
-    }
-    def host = bridgeIp
-    def LocalDevicePort = '3000'
 
-    // This REALLY shouldn't be required!
-    setDniHack()
+    def host = getDataValue("bridgeIp")
+    def LocalDevicePort = getDataValue("bridgePort")
 
     def headers = [:] 
     // headers.put("HOST", getHostAddress())
@@ -240,14 +278,14 @@ private sendSomaCmd(String path) {
 
 private setDniHack() {
     // log.debug "Device Network ID (DNI) Hack for $device.deviceNetworkId was triggered"
-    if (!bridgeIp) {
+    if (!getDataValue("bridgeIp")) {
         log.info "Device IP needs to be configured under device settings!"
         return
     }
 
     def LocalDevicePort = '3000'
     def porthex = convertPortToHex(LocalDevicePort)
-    def hosthex = convertIPtoHex(bridgeIp)
+    def hosthex = convertIPtoHex(getDataValue("bridgeIp"))
     def newDeviceId = "$hosthex:$porthex"
     
     if (device.deviceNetworkId != newDeviceId) {
@@ -282,30 +320,15 @@ private String convertPortToHex(port) {
     return hexport
 }
 
-
-// SAMPLE konnected code - Device Discovery : Verify a Device
-def discoveryVerify(Map device) {
-  log.debug "Verifying communication with device $device"
-  String host = getDeviceIpAndPort(device)
-  sendHubCommand(
-    new physicalgraph.device.HubAction(
-      """GET ${device.ssdpPath} HTTP/1.1\r\nHOST: ${host}\r\n\r\n""",
-      physicalgraph.device.Protocol.LAN,
-      host,
-      [callback: discoveryVerificationHandler]
-    )
-  )
+private checkBattery(mac) {
+    log.info "Checking shade $mac battery level.."
+    def path = "/get_battery_level/$mac"
+    log.debug "Request Path: $path"
+    return sendSomaCmd(path)
 }
-
-//Device Discovery : Handle verification response
-def discoveryVerificationHandler(physicalgraph.device.HubResponse hubResponse) {
-  def body = hubResponse.xml
-  def device = state.device
-  if (device?.ssdpUSN.contains(body?.device?.UDN?.text())) {
-    log.debug "Verification Success: $body"
-    device.name =  body?.device?.roomName?.text()
-    device.model = body?.device?.modelName?.text()
-    device.serialNumber = body?.device?.serialNum?.text()
-    device.verified = true
-  }
+private checkPosition(mac) {
+    log.info "Checking shade $mac position.."
+    def path = "/get_shade_state/$mac"
+    log.debug "Request Path: $path"
+    return sendSomaCmd(path)
 }
