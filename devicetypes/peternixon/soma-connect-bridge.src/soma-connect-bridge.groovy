@@ -128,7 +128,10 @@ private void createChildDevices(shades) {
             def x = (i - 1)
             log.debug("Processing child device: ${shades[x]['name']} with MAC ${shades[x]['mac']}")
             def childDni = "${shades[x]['mac']}"
-            def existing = getChildDevice(childDni)
+            // def existing = getChildDevice(childDni)
+            def existing = childDevices.find {
+                it.deviceNetworkId == childDni
+			}
             if (!existing) {
                 def childDevice = addChildDevice("Soma Smart Shades",
                     childDni,
@@ -167,7 +170,7 @@ private listSomaDevices() {
 
 // Capability commands
 def initialize() {
-    log.debug("initialize() Soma Connect with settings ${settings}")
+    log.debug("initialize() Soma Connect with settings: ${settings} and data: ${data}")
     // TODO: response(refresh() + configure())
     return listSomaDevices()
 }
@@ -216,13 +219,12 @@ def sync(ip, port) {
  */
 private sendSomaCmd(String path) {
     log.debug "sendSomaCmd() triggered for DNI: $device.deviceNetworkId with path $path"
-
     def host = getDataValue("bridgeIp")
     def LocalDevicePort = getDataValue("bridgePort")
 
     def headers = [:] 
-    headers.put("HOST", getHostAddress())
-    // headers.put("HOST", "$host:$LocalDevicePort")
+    //headers.put("HOST", getHostAddress())
+    headers.put("HOST", "$host:$LocalDevicePort")
     headers.put("Accept", "application/json")
     log.debug "Request Headers: $headers"
 
