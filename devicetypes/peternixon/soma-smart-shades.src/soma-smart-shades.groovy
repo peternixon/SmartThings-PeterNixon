@@ -44,24 +44,23 @@ metadata {
         capability "Polling"
         capability "Refresh"
         capability "Sensor"
-        capability "Switch"
-        capability "Switch Level"
+        capability "Switch" // for compatibility with switch automations
+        capability "Switch Level" // until we get a Window Shade Level capability
         capability "Voltage Measurement"
         capability "Window Shade"
-        capability "Window Shade Level"
+        //capability "Window Shade Level"
         capability "Window Shade Preset"
         
     }
     preferences {
-        section {
+            input ("preset", "number", title: "Preset position", description: "Set the window shade preset position", defaultValue: 50, range: "1..100", required: false, displayDuringSetup: false)
             input("actionDelay", "number",
-                title: "Action Delay\n\nAn emulation for how long it takes the window shade to perform the requested action.",
-                description: "In seconds (1-120; default if empty: 5 sec)",
+                title: "Action Delay",
+                description: "Time it takes the shade to close (1-120; default if empty: 5 sec)",
                 range: "1..120", displayDuringSetup: false)
-        }
-        section {
+
             input("supportedCommands", "enum",
-                title: "Supported Commands\n\nThis controls the value for supportedWindowShadeCommands.",
+                title: "Supported Commands",
                 description: "open, close, pause", multiple: false,
                 options: [
                     "1": "open, close",
@@ -77,7 +76,6 @@ metadata {
                     "10": "open, closed, close, pause"
                 ]
             )
-        }
     }
 
 
@@ -216,6 +214,7 @@ def updated() {
 
 // parse events into attributes
 def parse(description) {
+    // This shouldn't get hit as events go via the parent DTH
     log.debug "Parsing Event: '${description}'"
     def msg = parseLanMessage(description)
     log.debug "Parsed Message: '${msg}'"
@@ -225,12 +224,12 @@ def parse(description) {
 
 def refresh() {
     log.info "Device ID: $device.deviceNetworkId refresh() was triggered"
-    return [parent.checkPosition(getDataValue("shadeMac")), parent.checkBattery(getDataValue("shadeMac"))]
+    return [checkPosition(), checkBattery()]
 }
 
 def poll() {
     log.info "Device ID: $device.deviceNetworkId poll() was triggered"
-    return [parent.checkPosition(getDataValue("shadeMac")), parent.checkBattery(getDataValue("shadeMac"))]
+    return [checkPosition(), checkBattery()]
 }
 
 def on(){
@@ -245,8 +244,8 @@ def off(){
 
 def open() {
     log.debug "Open triggered"
-    //opening()
-    runIn(shadeActionDelay, "opened")
+    opening()
+    //runIn(shadeActionDelay, "opened")
     //opened()
     return parent.sendSomaCmd("/open_shade/" + getDataValue("shadeMac"))
 }
@@ -261,15 +260,13 @@ def close() {
 
 def pause() {
     log.debug "Pause triggered"
-    runIn(2, "partiallyOpen")
-    runIn(3, "refresh")
+    partiallyOpen()
+    runIn(2, "checkPosition")
     return parent.sendSomaCmd("/stop_shade/" + getDataValue("shadeMac"))
 }
 
 def presetPosition() {
     log.debug "presetPosition()"
-    setSomaPosition(preset ?: state.preset ?: 50)
-
     if (device.currentValue("windowShade") == "open") {
         closePartially()
     } else if (device.currentValue("windowShade") == "closed") {
@@ -277,18 +274,19 @@ def presetPosition() {
     } else {
         partiallyOpen()
     }
+    return setSomaPosition(preset ?: state.preset ?: 50)
 }
 
 def openPartially() {
     log.debug "openPartially()"
     opening()
-    runIn(shadeActionDelay, "partiallyOpen")
+    runIn(shadeActionDelay, "checkPosition")
 }
 
 def closePartially() {
     log.debug "closePartially()"
     closing()
-    runIn(shadeActionDelay, "partiallyOpen")
+    runIn(shadeActionDelay, "checkPosition")
 }
 
 def partiallyOpen() {
@@ -299,33 +297,37 @@ def partiallyOpen() {
 
 def opening() {
     log.debug "windowShade: opening"
-    sendEvent(name: "switch", value: "on")
+    sendEvent(name: "switch", value: "on", isStateChange: true)
     sendEvent(name: "windowShade", value: "opening", isStateChange: true)
+    runIn(shadeActionDelay, "checkPosition")
+    opened() // This is a hack because runIn() doesn't seem to be working..
 }
 
 def closing() {
     log.debug "windowShade: closing"
     sendEvent(name: "windowShade", value: "closing", isStateChange: true)
+    runIn(shadeActionDelay, "checkPosition")
+    closed() // This is a hack because runIn() doesn't seem to be working..
 }
 
 def opened() {
     log.debug "windowShade: open"
+    sendEvent(name: "switch", value: "on", isStateChange: true)
     sendEvent(name: "windowShade", value: "open", isStateChange: true)
-    sendEvent(name: "level", value: 100)
-    sendEvent(name: "shadeLevel", value: 100)
+    sendEvent(name: "level", value: 100, unit: "%", displayed: true)
 }
 
 def closed() {
     log.debug "windowShade: closed"
-    sendEvent(name: "switch", value: "off")
+    sendEvent(name: "switch", value: "off", isStateChange: true)
     sendEvent(name: "windowShade", value: "closed", isStateChange: true)
-    sendEvent(name: "level", value: 0)
-    sendEvent(name: "shadeLevel", value: 0)
+    sendEvent(name: "level", value: 0, unit: "%", displayed: true)
 }
 
 def unknown() {
     log.debug "windowShade: unknown"
     sendEvent(name: "windowShade", value: "unknown", isStateChange: true)
+    checkPosition()
 }
 
 def levelOpenClose(level) {
@@ -363,6 +365,8 @@ private setSomaPosition(percent) {
     // Convert from percentage open to physical position value
     def physicalPosition = 100 - percent
     log.info "Setting shade " + getDataValue("shadeMac") + " position to $physicalPosition"
+    runIn(shadeActionDelay, "checkPosition")
+    partiallyOpen() // This is a hack because runIn() doesn't seem to be working..
     return parent.sendSomaCmd("/set_shade_position/" + getDataValue("shadeMac") + "/" + physicalPosition)
 }
 
@@ -383,8 +387,6 @@ def setLevel(level) {
         sendEvent(name: "level", value: level, unit: "%")
         sendEvent(name: "shadeLevel", value: level)
         setSomaPosition(level)
-        // TODO : Double check position after a delay
-        // runIn(shadeActionDelay, "checkPosition")
     }
 }
 
@@ -406,4 +408,13 @@ def generateEvent(Map results) {
         sendEvent(name: name, value: value)
     }
     return null
+}
+
+def checkBattery() {
+    log.info "Checking shade battery level.."
+    return parent.checkBattery(getDataValue("shadeMac"))
+}
+def checkPosition() {
+    log.info "Checking shade position.."
+    return parent.checkPosition(getDataValue("shadeMac"))
 }
