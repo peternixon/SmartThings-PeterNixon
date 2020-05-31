@@ -274,13 +274,13 @@ private String convertPortToHex(port) {
     return hexport
 }
 
-private checkBattery(mac) {
+def checkBattery(mac) {
     log.info "Checking shade $mac battery level.."
     def path = "/get_battery_level/$mac"
     log.debug "Request Path: $path"
     return sendSomaCmd(path)
 }
-private checkPosition(mac) {
+def checkPosition(mac) {
     log.info "Checking shade $mac position.."
     def path = "/get_shade_state/$mac"
     log.debug "Request Path: $path"

@@ -56,8 +56,8 @@ metadata {
             input ("preset", "number", title: "Preset position", description: "Set the window shade preset position", defaultValue: 50, range: "1..100", required: false, displayDuringSetup: false)
             input("actionDelay", "number",
                 title: "Action Delay",
-                description: "Time it takes the shade to close (1-120; default if empty: 5 sec)",
-                range: "1..120", displayDuringSetup: false)
+                description: "Time it takes the shade to close (1-300; default if empty: 130 sec)",
+                range: "1..300", displayDuringSetup: false)
 
             input("supportedCommands", "enum",
                 title: "Supported Commands",
@@ -138,6 +138,9 @@ metadata {
         standardTile("windowShadeUnknown", "device.windowShade", width: 2, height: 2, decoration: "flat") {
             state "default", label: "unknown", action:"unknown", icon:"st.Home.home2"
         }
+        controlTile("levelSlider", "device.level", "slider", height: 2, width: 2, range:"(0..100)") {
+            state "level", action:"setLevel"
+        }
         /*
         valueTile("battery", "device.battery", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
            state "battery", label: '${currentValue}% battery', unit: ""
@@ -161,9 +164,6 @@ metadata {
         valueTile("shadeLevel", "device.level", width: 2, height: 2) {
             state "level", label:'${currentValue} %', unit:""
         }
-        controlTile("levelSlider", "device.level", "slider", height: 2, width: 2, range:"(0..100)") {
-            state "level", action:"setLevel"
-        }
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 1) {
             state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
         }
@@ -171,12 +171,12 @@ metadata {
         main "windowShade"
         details(["windowShade",
                  "windowShadePreset",
-                 "batteryLevel", "BatteryVoltage",
                  "shadeLevel",
+                 "batteryLevel",
+                 "BatteryVoltage",
                  "refresh"
                  ])
     }
-
 }
 
 
@@ -197,7 +197,7 @@ private getSupportedCommandsMap() {
 }
 
 private getShadeActionDelay() {
-    (settings.actionDelay != null) ? settings.actionDelay : 5
+    (settings.actionDelay != null) ? settings.actionDelay : 130
 }
 
 def installed() {
