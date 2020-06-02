@@ -29,11 +29,12 @@ import groovy.json.JsonSlurper
 metadata {
     definition (name: "SOMA Connect Bridge",
         namespace: "peternixon",
-        author: "Peter Nixon"
+        author: "Peter Nixon",
+        cstHandler: true
     )
     {
         capability "Bridge"
-        // capability "Health Check"
+        capability "Health Check"
         // capability "Polling"
         capability "Refresh"
         
@@ -44,16 +45,48 @@ metadata {
         section {
          }
     }
+    tiles(scale: 2) {
+     	multiAttributeTile(name: "rich-control", type: "generic", width: 6, height: 4, canChangeIcon: true) {
+			tileAttribute ("device.status", key: "PRIMARY_CONTROL") {
+				attributeState "Offline", label: '${currentValue}', action: "", icon: "st.Electronics.electronics1", backgroundColor: "#ffffff"
+	            attributeState "Online", label: '${currentValue}', action: "", icon: "st.Electronics.electronics1", backgroundColor: "#00A0DC"
+			    }
+			}
+		valueTile("doNotRemove", "v", decoration: "flat", height: 2, width: 6, inactiveLabel: false) {
+			state "default", label:'If removed, SOMA Shades will not work properly'
+		}
+		valueTile("idNumber", "device.idNumber", decoration: "flat", height: 2, width: 6, inactiveLabel: false) {
+			state "default", label:'ID: ${currentValue}'
+		}
+		valueTile("networkAddress", "device.networkAddress", decoration: "flat", height: 2, width: 6, inactiveLabel: false) {
+			state "default", label:'IP: ${currentValue}'
+		}
+        
+        childDeviceTile("shadeLevel", "shadeLevel", height: 2, width: 2, childTileName: "shadeLevel")
+        childDeviceTile("batteryLevel", "batteryLevel", height: 2, width: 2, childTileName: "batteryLevel")
+        childDeviceTile("BatteryVoltage", "BatteryVoltage", height: 2, width: 2, childTileName: "BatteryVoltage")
+        
+		main (["rich-control"])
+		details(["rich-control",
+                 "doNotRemove",
+                 "idNumber",
+                 "networkAddress",
+                 "shadeLevel",
+                 "batteryLevel",
+                 "BatteryVoltage"
+                 ])
+	}
+    /*
     tiles {
         childDeviceTile("shadeLevel", "shadeLevel", height: 2, width: 2, childTileName: "shadeLevel")
         childDeviceTile("batteryLevel", "batteryLevel", height: 2, width: 2, childTileName: "batteryLevel")
         childDeviceTile("BatteryVoltage", "BatteryVoltage", height: 2, width: 2, childTileName: "BatteryVoltage")
-    }
+    } 
     main "shadeLevel"
     details(["shadeLevel",
              "batteryLevel",
              "BatteryVoltage"
-            ])
+            ])*/
 }
 
 // parse events into attributes
@@ -84,33 +117,34 @@ def parse(description) {
             }
             if (json.mac) {
                 log.debug "My attached (child) devices are: $childDevices"
+                def childDni = createChildDni(json.mac)
                 def childDevice = childDevices.find {
 				    // it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.sourceEndpoint}" || it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.endpoint}"
-                    it.deviceNetworkId == json.mac
+                    it.deviceNetworkId == childDni
                     //it.sendEvent(childEvent)
 			    }
 			    if (childDevice) {
             	    log.debug "Event is for child device: $childDevice"
 
 					if (json.battery_level) {
-						// The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
-						log.info "SOMA Shade Battery Level for $json.mac is: $json.battery_level"
-						def bat_percentage = json.battery_level - 315
+						// The battery level should usually be between 420 and 320mV. 360 is considered 0% for useful work and above 415 considerd 100%.
+						def bat_percentage = ((json.battery_level - 360) / 55 * 100).round(0)
+                        log.info "SOMA Shade Battery Level for $json.mac is: $bat_percentage ($json.battery_level)"
 						childDevice.createAndSendEvent([name:"voltage", value: json.battery_level, unit: "mV", displayed: true])
-						childDevice.createAndSendEvent([name:"battery", value: bat_percentage, unit: "%", displayed: true])
+						childDevice.createAndSendEvent([name:"battery", value: bat_percentage * 10, unit: "%", displayed: true])
 					}
 					if (json.position) {
 						def positionPercentage = 100 - json.position // represent level as % open
 						log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
 						
                         // Update child shade state
+                        childDevice.createAndSendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
 			            if (positionPercentage == 100){
-				            childDevice.opened()
+				            return childDevice.opened()
 			            } else if (positionPercentage == 0) {
-				            childDevice.closed()
+				            return childDevice.closed()
             			} else {
-                            childDevice.createAndSendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
-                            childDevice.partiallyOpen()
+                            return childDevice.partiallyOpen()
             			}
 					}
             } else {
@@ -122,6 +156,11 @@ def parse(description) {
     }
 }
 
+def createChildDni(mac) {
+    // Remove colons and change to upercase
+    def dni = mac.replaceAll(":","").toUpperCase()
+    return dni
+}
 
 private void createChildDevices(shades) {
     log.debug("createChildDevices() Soma Connect with settings ${settings}")
@@ -135,7 +174,8 @@ private void createChildDevices(shades) {
         for (i in 1..shadeCount) {
             def x = (i - 1)
             log.debug("Processing child device: ${shades[x]['name']} with MAC ${shades[x]['mac']}")
-            def childDni = "${shades[x]['mac']}"
+            // def childDni = "${shades[x]['mac']}"
+            def childDni = createChildDni("${shades[x]['mac']}")
             // def existing = getChildDevice(childDni)
             def existing = childDevices.find {
                 it.deviceNetworkId == childDni
@@ -179,6 +219,9 @@ private listSomaDevices() {
 // Capability commands
 def initialize() {
     log.debug("initialize() Soma Connect with settings: ${settings} and data: ${data}")
+    sendEvent(name: "DeviceWatch-DeviceStatus", value: "online")
+    sendEvent(name: "healthStatus", value: "online")
+    sendEvent(name: "DeviceWatch-Enroll", value: [protocol:"LAN", scheme:"untracked", hubHardwareId:"${device.hub.hardwareID}"].encodeAsJson(), displayed: false)
     // TODO: response(refresh() + configure())
     return listSomaDevices()
 }
@@ -278,11 +321,107 @@ def checkBattery(mac) {
     log.info "Checking shade $mac battery level.."
     def path = "/get_battery_level/$mac"
     log.debug "Request Path: $path"
-    return sendSomaCmd(path)
+    return sendSomaCmdCallback(path)
 }
 def checkPosition(mac) {
     log.info "Checking shade $mac position.."
     def path = "/get_shade_state/$mac"
     log.debug "Request Path: $path"
-    return sendSomaCmd(path)
+    return sendSomaCmdCallback(path)
+}
+
+
+def sendSomaCmdCallback(String path) {
+    log.debug "sendSomaCmdCallback() triggered for DNI: $device.deviceNetworkId with path $path"
+    def host = getDataValue("bridgeIp")
+    def LocalDevicePort = getDataValue("bridgePort")
+
+    def headers = [:] 
+    //headers.put("HOST", getHostAddress())
+    headers.put("HOST", "$host:$LocalDevicePort")
+    headers.put("Accept", "application/json")
+    log.debug "Request Headers: $headers"
+
+    try {
+        def result = new physicalgraph.device.HubAction(
+            method: "GET",
+            path: path,
+            headers: headers,
+            device.deviceNetworkId,
+			[callback: callBackHandler]
+            )
+        sendHubCommand(result)
+        log.debug "Hub Action: $result"
+        //return result
+    }
+    catch (Exception e) {
+        log.debug "Hit Exception $e on $result"
+    }
+}
+
+// parse callback events into attributes
+void callBackHandler(physicalgraph.device.HubResponse hubResponse) {
+	log.debug "Entered callBackHandler()..."
+	def json = hubResponse.json                    // => any JSON included in response body, as a data structure of lists and maps
+	log.debug "Parsed JSON: '${json}'"
+
+    if (!json) {
+          log.debug "json was null for some reason :("
+    } else {
+        log.debug "JSON Response: $json"
+        // Response should look something like {"result":"success","version":"2.0.12","shades":[{"name":"Room 1","mac":"FF:FF:FF:FF:FF:FF"}]}
+        if (json.result == "error") {
+            log.info "ERROR Response from SOMA Connect: $json.msg"
+        } else if (json.result == "success") {
+            log.info "SUCCESS Response from SOMA Connect"
+            // response from list_devices
+            if (json.shades) {
+                def shadeCount = json.shades.size()
+                def shadeList = json.shades
+                log.debug "$shadeCount SOMA Shades exist.."
+                sendEvent(name: "shadeCount", value: shadeCount, isStateChange: true)
+                sendEvent(name: "shadeList", value: shadeList, isStateChange: true)
+                createChildDevices(json.shades)
+            }
+            if (json.mac) {
+                log.debug "My attached (child) devices are: $childDevices"
+                def childDni = createChildDni(json.mac)
+                def childDevice = childDevices.find {
+				    // it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.sourceEndpoint}" || it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.endpoint}"
+                    it.deviceNetworkId == childDni
+                    //it.sendEvent(childEvent)
+			}
+			if (childDevice) {
+            	    log.debug "Event is for child device: $childDevice"
+					log.trace "Message forwarded to $childDevice"
+                    childDevice.parse_json( json )
+                    /*
+					if (json.battery_level) {
+						// The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
+						log.info "SOMA Shade Battery Level for $json.mac is: $json.battery_level"
+						def bat_percentage = json.battery_level - 315
+						childDevice.createAndSendEvent([name:"voltage", value: json.battery_level, unit: "mV", displayed: true])
+						childDevice.createAndSendEvent([name:"battery", value: bat_percentage, unit: "%", displayed: true])
+					}
+					if (json.position) {
+						def positionPercentage = 100 - json.position // represent level as % open
+						log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
+						
+                        // Update child shade state
+                        childDevice.createAndSendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
+			            if (positionPercentage == 100){
+				            childDevice.opened()
+			            } else if (positionPercentage == 0) {
+				            childDevice.closed()
+            			} else {
+                            childDevice.partiallyOpen()
+            			}
+					*/
+            } else {
+                    log.info "$json.mac was not found on a currently configured child device! Rescan triggered"
+                    runIn(5, "listSomaDevices")
+			    }
+            }
+        }
+    }
 }

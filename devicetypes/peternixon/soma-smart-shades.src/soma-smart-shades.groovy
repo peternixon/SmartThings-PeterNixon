@@ -31,7 +31,8 @@ metadata {
     definition (name: "SOMA Smart Shades",
         namespace: "peternixon",
         author: "Peter Nixon",
-        // cstHandler: true,
+        // Not sure if this is needed for a child DTH (vs SmartApp)
+        cstHandler: true,
         // ocfDeviceType: "oic.d.blind",
         // runLocally: false,
         // mnmn: "SmartThings",
@@ -91,6 +92,9 @@ metadata {
                 attributeState "closing", label:'${name}', action:"pause", icon:"st.shades.shade-closing", backgroundColor:"#ffffff", nextState:"partially open"
                 attributeState "unknown", label:'${name}', action:"open", icon:"st.shades.shade-closing", backgroundColor:"#ffffff", nextState:"opening"
             }
+            tileAttribute("device.battery", key: "SECONDARY_CONTROL") {
+                attributeState "battery", label:'${currentValue} % battery'
+            }
             tileAttribute ("device.level", key: "SLIDER_CONTROL") {
                 attributeState "level", action:"setLevel"
             }
@@ -138,44 +142,68 @@ metadata {
         standardTile("windowShadeUnknown", "device.windowShade", width: 2, height: 2, decoration: "flat") {
             state "default", label: "unknown", action:"unknown", icon:"st.Home.home2"
         }
+        valueTile("statusLabel", "device.battery", width: 6, height: 1, decoration: "flat") {
+            state "default", label: "Status:" 
+        }
+        valueTile("battery", "device.battery", width: 2, height: 2, decoration: "flat") {
+           state "battery", label: '${currentValue} % battery', unit: "%"
+        }
+        valueTile("voltage", "device.voltage", width: 2, height: 2, range:"(3..5)") {
+            state "voltage", label:'${currentValue} V battery', unit: "V"
+        }
+        valueTile("miscLabel", "device.states", width: 6, height: 1, decoration: "flat") {
+            state "default", label: "Misc:" 
+        }
+        valueTile("level", "device.level", width: 2, height: 2, range:"(0..100)") {
+            state "level", label:'${currentValue} % open', unit:"%"
+        }
         controlTile("levelSlider", "device.level", "slider", height: 2, width: 2, range:"(0..100)") {
             state "level", action:"setLevel"
         }
-        /*
-        valueTile("battery", "device.battery", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
-           state "battery", label: '${currentValue}% battery', unit: ""
-        }
-        */
-        valueTile("batteryLevel", "device.battery", width: 2, height: 2) {
-            state "battery", label:'${currentValue}% battery', unit:"%",
-            backgroundColors:[
-            [value: 31, color: "#153591"],
-            [value: 44, color: "#1e9cbb"],
-            [value: 59, color: "#90d2a7"],
-            [value: 74, color: "#44b621"],
-            [value: 84, color: "#f1d801"],
-            [value: 95, color: "#d04e00"],
-            [value: 96, color: "#bc2323"]
-        ]
-        }
-        valueTile("BatteryVoltage", "device.voltage", width: 2, height: 2, range:"(320..420)") {
-            state "voltage", label:'${currentValue} mV', unit:"mV"
-        }
-        valueTile("shadeLevel", "device.level", width: 2, height: 2) {
-            state "level", label:'${currentValue} %', unit:""
-        }
-        standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 1) {
+		standardTile("switch", "device.switch", width: 2, height: 2, canChangeIcon: true) {
+			//state "off", label: 'On', action: "momentary.push", backgroundColor: "#ffffff", nextState: "on"
+			//state "on", label: 'Off', action: "momentary.push", backgroundColor: "#53a7c0"
+            state "off", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff"
+            state "on", label:'${name}', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#00a0dc"
+		}
+        standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
             state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
         }
-
         main "windowShade"
-        details(["windowShade",
+		details(["windowShade",
+				 "commandsLabel",
+				 "windowShadeOpen",
+                 "windowShadeClose",
+                 "windowShadePause",
                  "windowShadePreset",
-                 "shadeLevel",
-                 "batteryLevel",
-                 "BatteryVoltage",
+                 "levelSlider",
+                 "blank",
+                 /*
+				 "statesLabel",
+				 "windowShadePartiallyOpen",
+                 "windowShadeOpening",
+                 "windowShadeClosing",
+                 "windowShadeOpened",
+                 "windowShadeClosed",
+                 "windowShadeUnknown",
+                 */
+                 "statusLabel",
+                 "battery",
+                 "voltage",
+                 "level",
+                 "miscLabel",
+                 "switch",
                  "refresh"
                  ])
+                 /*
+        details(["windowShade",
+                 "windowShadePreset",
+                 "level",
+                 "battery",
+                 "voltage",
+                 "switch",
+                 "refresh"
+                 ]) */
     }
 }
 
@@ -202,14 +230,15 @@ private getShadeActionDelay() {
 
 def installed() {
     log.debug("installed() Shade with settings ${settings}")
-    updated()
     unknown()
+    updated()
 }
 
 def updated() {
     log.debug "updated()"
     def commands = (settings.supportedCommands != null) ? settings.supportedCommands : "2"
     sendEvent(name: "supportedWindowShadeCommands", value: JsonOutput.toJson(supportedCommandsMap[commands]))
+    refresh()
 }
 
 // parse events into attributes
@@ -232,41 +261,57 @@ def poll() {
     return [checkPosition(), checkBattery()]
 }
 
-def on(){
-    log.debug("On")
-    open()
+void on(){
+    log.debug "Device ID: $device.deviceNetworkId on() was triggered"
+    sendEvent(name: "switch", value: "on")
+    //open()
+    // This is what Hue does
+	log.trace parent.on(this)
 }
+
 
 def off(){
-    log.debug("Off")
-    close()
+    log.debug "Device ID: $device.deviceNetworkId off() was triggered"
+    sendEvent(name: "switch", value: "off")
+    //close()
 }
 
-def open() {
-    log.debug "Open triggered"
+def openX() {
+    log.debug "Device ID: $device.deviceNetworkId open() was triggered"
     opening()
     //runIn(shadeActionDelay, "opened")
     //opened()
     return parent.sendSomaCmd("/open_shade/" + getDataValue("shadeMac"))
 }
 
-def close() {
-    log.debug "Close triggered"
+def closeX() {
+    log.debug "Device ID: $device.deviceNetworkId close() was triggered"
     closing()
     runIn(shadeActionDelay, "closed")
     //closed()
     return parent.sendSomaCmd("/close_shade/" + getDataValue("shadeMac"))
 }
 
+def open() {
+    log.debug "Device ID: $device.deviceNetworkId open() was triggered"
+    opened()
+    return setSomaPosition(100)
+}
+def close() {
+    log.debug "Device ID: $device.deviceNetworkId close() was triggered"
+    closed()
+    return setSomaPosition(0)
+}
+
 def pause() {
-    log.debug "Pause triggered"
+    log.debug "Device ID: $device.deviceNetworkId pause() was triggered"
     partiallyOpen()
     runIn(2, "checkPosition")
     return parent.sendSomaCmd("/stop_shade/" + getDataValue("shadeMac"))
 }
 
 def presetPosition() {
-    log.debug "presetPosition()"
+    log.debug "Device ID: $device.deviceNetworkId presetPosition() was triggered"
     if (device.currentValue("windowShade") == "open") {
         closePartially()
     } else if (device.currentValue("windowShade") == "closed") {
@@ -278,19 +323,19 @@ def presetPosition() {
 }
 
 def openPartially() {
-    log.debug "openPartially()"
-    opening()
+    log.debug "Device ID: $device.deviceNetworkId openPartially() was triggered"
     runIn(shadeActionDelay, "checkPosition")
+    return opening()
 }
 
 def closePartially() {
     log.debug "closePartially()"
-    closing()
     runIn(shadeActionDelay, "checkPosition")
+    return closing()
 }
 
 def partiallyOpen() {
-    log.debug "windowShade: partially open"
+    log.debug "Device ID: $device.deviceNetworkId partiallyOpen() was triggered"
     sendEvent(name: "switch", value: "on")
     sendEvent(name: "windowShade", value: "partially open", isStateChange: true)
 }
@@ -300,34 +345,33 @@ def opening() {
     sendEvent(name: "switch", value: "on", isStateChange: true)
     sendEvent(name: "windowShade", value: "opening", isStateChange: true)
     runIn(shadeActionDelay, "checkPosition")
-    opened() // This is a hack because runIn() doesn't seem to be working..
+    return opened() // This is a hack because runIn() doesn't seem to be working..
 }
 
 def closing() {
     log.debug "windowShade: closing"
-    sendEvent(name: "windowShade", value: "closing", isStateChange: true)
+    sendEvent(name: "windowShade", value: "closing", isStateChange: true, displayed: true)
     runIn(shadeActionDelay, "checkPosition")
-    closed() // This is a hack because runIn() doesn't seem to be working..
+    return closed() // This is a hack because runIn() doesn't seem to be working..
 }
 
 def opened() {
     log.debug "windowShade: open"
-    sendEvent(name: "switch", value: "on", isStateChange: true)
-    sendEvent(name: "windowShade", value: "open", isStateChange: true)
-    sendEvent(name: "level", value: 100, unit: "%", displayed: true)
+    sendEvent(name: "switch", value: "on", isStateChange: true, displayed: true)
+    sendEvent(name: "windowShade", value: "open", isStateChange: true, displayed: true)
+    sendEvent(name: "level", value: 100, unit: "%", isStateChange: true, displayed: true)
 }
 
 def closed() {
     log.debug "windowShade: closed"
     sendEvent(name: "switch", value: "off", isStateChange: true)
     sendEvent(name: "windowShade", value: "closed", isStateChange: true)
-    sendEvent(name: "level", value: 0, unit: "%", displayed: true)
+    sendEvent(name: "level", value: 0, unit: "%", isStateChange: true, displayed: true)
 }
 
 def unknown() {
     log.debug "windowShade: unknown"
     sendEvent(name: "windowShade", value: "unknown", isStateChange: true)
-    checkPosition()
 }
 
 def levelOpenClose(level) {
@@ -350,7 +394,7 @@ private String convertHexToIP(hex) {
 }
 
 private String convertIPtoHex(ipAddress) {
-    log.debug "convertIPtoHex() $ipAddress"
+    log.debug "convertIPtoHex($ipAddress)"
     String hex = ipAddress.tokenize( '.' ).collect {  String.format( '%02X', it.toInteger() ) }.join()
     return hex
 }
@@ -366,8 +410,9 @@ private setSomaPosition(percent) {
     def physicalPosition = 100 - percent
     log.info "Setting shade " + getDataValue("shadeMac") + " position to $physicalPosition"
     runIn(shadeActionDelay, "checkPosition")
-    partiallyOpen() // This is a hack because runIn() doesn't seem to be working..
-    return parent.sendSomaCmd("/set_shade_position/" + getDataValue("shadeMac") + "/" + physicalPosition)
+    // partiallyOpen() // This is a hack because runIn() doesn't seem to be working..
+    // return parent.sendSomaCmd("/set_shade_position/" + getDataValue("shadeMac") + "/" + physicalPosition)
+    parent.sendSomaCmdCallback("/set_shade_position/" + getDataValue("shadeMac") + "/" + physicalPosition)
 }
 
 def setLevel() {
@@ -380,7 +425,6 @@ def setLevel(level) {
     if (level == 0){
         close()
     } else if (level == 100){
-        log.debug("More than 90")
         open()
     } else {
         opening()
@@ -417,4 +461,130 @@ def checkBattery() {
 def checkPosition() {
     log.info "Checking shade position.."
     return parent.checkPosition(getDataValue("shadeMac"))
+}
+
+def checkBatteryC() {
+    def mac = getDataValue("shadeMac")
+    log.info "Checking shade $mac battery level.."
+    def path = "/get_battery_level/$mac"
+    log.debug "Request Path: $path"
+    return sendSomaCmdCallback(path)
+}
+def checkPositionC() {
+    def mac = getDataValue("shadeMac")
+    log.info "Checking shade $mac position.."
+    def path = "/get_shade_state/$mac"
+    log.debug "Request Path: $path"
+    return sendSomaCmdCallback(path)
+}
+
+private sendSomaCmdCallback(String path) {
+    log.debug "sendSomaCmdCallback() triggered for DNI: $device.deviceNetworkId with path $path"
+    def host = getDataValue("bridgeIp")
+    def LocalDevicePort = getDataValue("bridgePort")
+
+    def headers = [:] 
+    //headers.put("HOST", getHostAddress())
+    headers.put("HOST", "$host:$LocalDevicePort")
+    headers.put("Accept", "application/json")
+    log.debug "Request Headers: $headers"
+
+    try {
+        def result = new physicalgraph.device.HubAction(
+            method: "GET",
+            path: path,
+            headers: headers,
+            device.deviceNetworkId,
+			[callback: callBackHandler]
+            )
+        sendHubCommand(result)
+        log.debug "Hub Action: $result"
+        //return result
+    }
+    catch (Exception e) {
+        log.debug "Hit Exception $e on $result"
+    }
+}
+
+// parse callback events into attributes
+void callBackHandler(physicalgraph.device.HubResponse hubResponse) {
+	log.debug "Entered callBackHandler()..."
+	def json = hubResponse.json
+	log.debug "Parsing '${json}'"
+
+	// If command was executed successfully
+	if (json.result == "success") {
+		log.debug "Command executed successfully"
+
+		// If response is for battery level
+		if (json.battery_level){
+			// represent battery level as a percentage
+			def battery_percent = json.battery_level - 320
+			if (battery_percent > 100) {battery_percent = 100}
+            log.debug "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC: battery"
+			sendEvent(name: "battery", value: battery_percent)
+		}
+		// If response is for shade level
+		else if (json.find{ it.key == "position" }){
+			def new_level = 100 - json.position  // represent level as % open
+            log.debug "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC: position"
+			sendEvent(name: "level", value: new_level)
+
+			// Update shade state
+			if (new_level == 100){
+				sendEvent(name: "windowShade", value: "open")
+			} else if (new_level == 0) {
+				sendEvent(name: "windowShade", value: "closed")
+			} else {
+				sendEvent(name: "windowShade", value: "partially open")
+			}
+		}
+		// If successfull response is from another action, get new shade level
+		else {
+			checkPosition()
+		}
+	}
+}
+
+def bigDecimalRound(n,decimals){
+    return(n.setScale(decimals, BigDecimal.ROUND_HALF_UP))
+}
+
+def parse_json(json) {
+    log.debug "received JSON from parent DTH: $json"
+    if (json.battery_level) {
+						// The battery level should usually be between 420 and 320mV. 360 is considered 0% for useful work and above 415 considerd 100%.
+						// def bat_percentage = ((float)(json.battery_level - 360) / 55 * 100)).round(0)
+                        //((float)rd).round(3)
+                        def bat_value = ((json.battery_level - 360) / 55 * 100)
+                        /*
+                        if (bat_value > 100) {
+                            def bat_percentage = 100
+                        } else if (bat_value < 0) {
+                            def bat_percentage = 0
+                        } else {
+                            def bat_percentage = bigDecimalRound(bat_value,0)
+                        } */
+                        def bat_percentage = bigDecimalRound(bat_value,0)
+                        log.info "SOMA Shade Battery Level for $json.mac is: $bat_percentage ($json.battery_level)"
+
+						sendEvent([name:"voltage", value: json.battery_level / 100, unit: "V", displayed: true])
+						sendEvent([name:"battery", value: bat_percentage, unit: "%", displayed: true])
+    } else if (json.position) {
+						def positionPercentage = 100 - json.position // represent level as % open
+                        if (positionPercentage > 100) {positionPercentage = 100}
+						log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
+						
+                        // Update child shade state
+                        sendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
+			            if (positionPercentage == 100){
+				            opened()
+			            } else if (positionPercentage == 0) {
+				            closed()
+            			} else {
+                            partiallyOpen()
+            			}
+    } else {
+                        // checkPosition()
+    }
 }
