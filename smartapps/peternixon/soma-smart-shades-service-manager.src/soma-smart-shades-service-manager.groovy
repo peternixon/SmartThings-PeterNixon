@@ -1,6 +1,6 @@
 /*
 *  SOMA Smart Shades Service Manager
-*  Category: Device Handler
+*  Category: SmartApp Service Manager
 * 
 */
 
@@ -21,12 +21,8 @@ preferences {
 }
 
 def initialize() {
-	// remove location subscription aftwards
-	//unsubscribe()
-	//state.subscribe = false
 	log.debug("bridgeIp is ${bridgeIp}")
 
- 	// runEvery5Minutes(initialize)
     log.debug("initialize() Soma Connect with settings ${settings}")
     if (!bridgeIp) {
         log.info "Device IP needs to be configured under device settings!"
@@ -57,8 +53,6 @@ def initialize() {
     def existing = getChildDevice(deviceId)
 
     if (!existing) {
-        // DeviceWrapper addChildDevice(String namespace, String typeName, String deviceNetworkId, hubId, Map properties)
-        // def childDevice = addChildDevice("peternixon", "SOMA Connect Bridge", deviceId, '10cfeea2-eda5-472f-a704-10c7a86a5781', [
         def childDevice = addChildDevice("peternixon", "SOMA Connect Bridge", deviceId, hub.id, [
 				"label": "SOMA Connect",
 				"data": [
@@ -101,7 +95,6 @@ def ping() {
 
 def poll() {
     log.info "Device ID: $device.deviceNetworkId poll() was triggered"
-    // return listSomaDevices()
     return initialize()
 }
 
@@ -118,13 +111,11 @@ private String convertHexToIP(hex) {
 }
 
 private String convertIPtoHex(ipAddress) {
-    // log.debug "convertIPtoHex() $ipAddress"
     String hex = ipAddress.tokenize( '.' ).collect {  String.format( '%02X', it.toInteger() ) }.join()
     return hex
 }
 
 private String convertPortToHex(port) {
-    // log.debug "convertPortToHex() $port"
     String hexport = port.toString().format( '%04X', port.toInteger() )
     return hexport
 }
