@@ -553,19 +553,18 @@ def bigDecimalRound(n,decimals){
 def parse_json(json) {
     log.debug "received JSON from parent DTH: $json"
     if (json.battery_level) {
-						// The battery level should usually be between 420 and 320mV. 360 is considered 0% for useful work and above 415 considerd 100%.
-						// def bat_percentage = ((float)(json.battery_level - 360) / 55 * 100)).round(0)
-                        //((float)rd).round(3)
-                        def bat_value = ((json.battery_level - 360) / 55 * 100)
-                        /*
-                        if (bat_value > 100) {
-                            def bat_percentage = 100
-                        } else if (bat_value < 0) {
-                            def bat_percentage = 0
+        log.debug "SOMA Shade Battery Level for $json.mac is: $json.battery_level"
+						// The battery level should usually be between 420 and 320mV. 360 is considered 0% for useful work and above 400? considerd 100%.
+                        def bat_percentage
+                        def bat_value
+                        if (json.battery_level >= 400) {
+                            bat_percentage = 100
+                        } else if (json.battery_level <= 360) {
+                            bat_percentage = 0
                         } else {
-                            def bat_percentage = bigDecimalRound(bat_value,0)
-                        } */
-                        def bat_percentage = bigDecimalRound(bat_value,0)
+                            bat_value = ((json.battery_level - 360) / 40 * 100)
+                            bat_percentage = bigDecimalRound(bat_value, 0)  // Round to zero devimal places
+                        }
                         log.info "SOMA Shade Battery Level for $json.mac is: $bat_percentage ($json.battery_level)"
 
 						sendEvent([name:"voltage", value: json.battery_level / 100, unit: "V", displayed: true])
