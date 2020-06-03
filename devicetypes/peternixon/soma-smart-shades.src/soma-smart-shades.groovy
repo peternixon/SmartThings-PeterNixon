@@ -85,12 +85,12 @@ metadata {
     tiles(scale: 2) {
         multiAttributeTile(name:"windowShade", type: "generic", width: 6, height: 4){
             tileAttribute ("device.windowShade", key: "PRIMARY_CONTROL") {
-                attributeState "open", label:'${name}', action:"close", icon:"st.shades.shade-open", backgroundColor:"#79b821", nextState:"closing"
-                attributeState "closed", label:'${name}', action:"open", icon:"st.shades.shade-closed", backgroundColor:"#ffffff", nextState:"opening"
-                attributeState "partially open", label:'Open', action:"close", icon:"st.shades.shade-open", backgroundColor:"#79b821", nextState:"closing"
-                attributeState "opening", label:'${name}', action:"pause", icon:"st.shades.shade-opening", backgroundColor:"#79b821", nextState:"partially open"
-                attributeState "closing", label:'${name}', action:"pause", icon:"st.shades.shade-closing", backgroundColor:"#ffffff", nextState:"partially open"
-                attributeState "unknown", label:'${name}', action:"open", icon:"st.shades.shade-closing", backgroundColor:"#ffffff", nextState:"opening"
+                attributeState "open", label:'${name}', action:"close", icon:"st.doors.garage.garage-open", backgroundColor:"#79b821", nextState:"closing"
+                attributeState "closed", label:'${name}', action:"open", icon:"st.doors.garage.garage-closed", backgroundColor:"#ffffff", nextState:"opening"
+                attributeState "partially open", label:'Open', action:"close", icon:"st.Transportation.transportation13", backgroundColor:"#79b821", nextState:"closing"
+                attributeState "opening", label:'${name}', action:"pause", icon:"st.doors.garage.garage-opening", backgroundColor:"#79b821", nextState:"partially open"
+                attributeState "closing", label:'${name}', action:"pause", icon:"st.doors.garage.garage-closing", backgroundColor:"#ffffff", nextState:"partially open"
+                attributeState "unknown", label:'${name}', action:"open", icon:"st.Transportation.transportation13", backgroundColor:"#ffffff", nextState:"opening"
             }
             tileAttribute("device.battery", key: "SECONDARY_CONTROL") {
                 attributeState "battery", label:'${currentValue} % battery'
@@ -161,8 +161,6 @@ metadata {
             state "level", action:"setLevel"
         }
 		standardTile("switch", "device.switch", width: 2, height: 2, canChangeIcon: true) {
-			//state "off", label: 'On', action: "momentary.push", backgroundColor: "#ffffff", nextState: "on"
-			//state "on", label: 'Off', action: "momentary.push", backgroundColor: "#53a7c0"
             state "off", label:'${name}', action:"switch.on", icon:"st.doors.garage.garage-closed", backgroundColor:"#ffffff"
             state "on", label:'${name}', action:"switch.off", icon:"st.doors.garage.garage-open", backgroundColor:"#00a0dc"
 		}
@@ -312,13 +310,15 @@ def pause() {
 
 def presetPosition() {
     log.debug "Device ID: $device.deviceNetworkId presetPosition() was triggered"
+    /*
     if (device.currentValue("windowShade") == "open") {
         closePartially()
     } else if (device.currentValue("windowShade") == "closed") {
         openPartially()
     } else {
         partiallyOpen()
-    }
+    }*/
+    partiallyOpen()
     return setSomaPosition(preset ?: state.preset ?: 50)
 }
 
