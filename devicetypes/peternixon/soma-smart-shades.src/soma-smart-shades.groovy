@@ -264,16 +264,16 @@ def poll() {
 void on(){
     log.debug "Device ID: $device.deviceNetworkId on() was triggered"
     sendEvent(name: "switch", value: "on")
-    //open()
+    open()
     // This is what Hue does
-	log.trace parent.on(this)
+	// log.trace parent.on(this)
 }
 
 
 def off(){
     log.debug "Device ID: $device.deviceNetworkId off() was triggered"
     sendEvent(name: "switch", value: "off")
-    //close()
+    close()
 }
 
 def openX() {
