@@ -108,16 +108,16 @@ metadata {
         }
 
         standardTile("windowShadeOpen", "device.windowShade", width: 2, height: 2, decoration: "flat") {
-            state "default", label: "open", action:"open", icon:"st.Home.home2"
+            state "default", label: "open", action:"open", icon:"st.doors.garage.garage-open"
         }
         standardTile("windowShadeClose", "device.windowShade", width: 2, height: 2, decoration: "flat") {
-            state "default", label: "close", action:"close", icon:"st.Home.home2"
+            state "default", label: "close", action:"close", icon:"st.doors.garage.garage-closed"
         }
         standardTile("windowShadePause", "device.windowShade", width: 2, height: 2, decoration: "flat") {
-            state "default", label: "pause", action:"pause", icon:"st.Home.home2"
+            state "default", label: "pause", action:"pause", icon:"st.Weather.weather7"
         }
         standardTile("windowShadePreset", "device.windowShadePreset", width: 2, height: 2, decoration: "flat") {
-            state "default", label: "preset", action:"presetPosition", icon:"st.Home.home2"
+            state "default", label: "preset", action:"presetPosition", icon:"st.Transportation.transportation13"
         }
 
         valueTile("statesLabel", "device.states", width: 6, height: 1, decoration: "flat") {
@@ -125,7 +125,7 @@ metadata {
         }
 
         standardTile("windowShadePartiallyOpen", "device.windowShade", width: 2, height: 2, decoration: "flat") {
-            state "default", label: "partially open", action:"partiallyOpen", icon:"st.Home.home2"
+            state "default", label: "partially open", action:"partiallyOpen", icon:"st.Transportation.transportation13"
         }
         standardTile("windowShadeOpening", "device.windowShade", width: 2, height: 2, decoration: "flat") {
             state "default", label: "opening", action:"opening", icon:"st.Home.home2"
@@ -163,8 +163,8 @@ metadata {
 		standardTile("switch", "device.switch", width: 2, height: 2, canChangeIcon: true) {
 			//state "off", label: 'On', action: "momentary.push", backgroundColor: "#ffffff", nextState: "on"
 			//state "on", label: 'Off', action: "momentary.push", backgroundColor: "#53a7c0"
-            state "off", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff"
-            state "on", label:'${name}', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#00a0dc"
+            state "off", label:'${name}', action:"switch.on", icon:"st.doors.garage.garage-closed", backgroundColor:"#ffffff"
+            state "on", label:'${name}', action:"switch.off", icon:"st.doors.garage.garage-open", backgroundColor:"#00a0dc"
 		}
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
             state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
