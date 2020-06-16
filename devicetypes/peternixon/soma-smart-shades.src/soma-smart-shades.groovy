@@ -31,27 +31,25 @@ metadata {
     definition (name: "SOMA Smart Shades",
         namespace: "peternixon",
         author: "Peter Nixon",
-        // Not sure if this is needed for a child DTH (vs SmartApp)
         cstHandler: true,
-        // ocfDeviceType: "oic.d.blind",
-        // runLocally: false,
-        // mnmn: "SmartThings",
+        ocfDeviceType: "oic.d.blind",
         vid: "generic-window-shade"
     )
     {
+        capability "Window Shade"
+        capability "Window Shade Level"
+        capability "Window Shade Preset"
+
         capability "Actuator"
         capability "Battery"
+        capability "Health Check"
         // capability "Momentary"
         capability "Polling"
         capability "Refresh"
         capability "Sensor"
-        capability "Switch" // for compatibility with switch automations
+        capability "Switch" // for Google Assistant Operability
         capability "Switch Level" // until we get a Window Shade Level capability
-        capability "Voltage Measurement"
-        capability "Window Shade"
-        //capability "Window Shade Level"
-        capability "Window Shade Preset"
-        
+        capability "Voltage Measurement"        
     }
     preferences {
             input ("preset", "number", title: "Preset position", description: "Set the window shade preset position", defaultValue: 50, range: "1..100", required: false, displayDuringSetup: false)
@@ -160,10 +158,10 @@ metadata {
         controlTile("levelSlider", "device.level", "slider", height: 2, width: 2, range:"(0..100)") {
             state "level", action:"setLevel"
         }
-		standardTile("switch", "device.switch", width: 2, height: 2, canChangeIcon: true) {
-            state "off", label:'${name}', action:"switch.on", icon:"st.doors.garage.garage-closed", backgroundColor:"#ffffff"
-            state "on", label:'${name}', action:"switch.off", icon:"st.doors.garage.garage-open", backgroundColor:"#00a0dc"
-		}
+		//standardTile("switch", "device.switch", width: 2, height: 2, canChangeIcon: true) {
+        //    state "off", label:'${name}', action:"switch.on", icon:"st.doors.garage.garage-closed", backgroundColor:"#ffffff"
+        //    state "on", label:'${name}', action:"switch.off", icon:"st.doors.garage.garage-open", backgroundColor:"#00a0dc"
+		//}
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
             state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
         }
@@ -190,18 +188,9 @@ metadata {
                  "voltage",
                  "level",
                  "miscLabel",
-                 "switch",
+                 //"switch",
                  "refresh"
                  ])
-                 /*
-        details(["windowShade",
-                 "windowShadePreset",
-                 "level",
-                 "battery",
-                 "voltage",
-                 "switch",
-                 "refresh"
-                 ]) */
     }
 }
 
@@ -254,6 +243,12 @@ def refresh() {
     return [checkPosition(), checkBattery()]
 }
 
+//Reporting of Battery & position levels
+def ping(){
+	log.debug "Ping() "
+	return refresh()
+}
+
 def poll() {
     log.info "Device ID: $device.deviceNetworkId poll() was triggered"
     return [checkPosition(), checkBattery()]
@@ -261,7 +256,6 @@ def poll() {
 
 void on(){
     log.debug "Device ID: $device.deviceNetworkId on() was triggered"
-    sendEvent(name: "switch", value: "on")
     open()
     // This is what Hue does
 	// log.trace parent.on(this)
@@ -270,7 +264,6 @@ void on(){
 
 def off(){
     log.debug "Device ID: $device.deviceNetworkId off() was triggered"
-    sendEvent(name: "switch", value: "off")
     close()
 }
 
@@ -350,6 +343,7 @@ def opening() {
 
 def closing() {
     log.debug "windowShade: closing"
+    sendEvent(name: "switch", value: "off", isStateChange: true)
     sendEvent(name: "windowShade", value: "closing", isStateChange: true, displayed: true)
     runIn(shadeActionDelay, "checkPosition")
     return closed() // This is a hack because runIn() doesn't seem to be working..
@@ -435,6 +429,30 @@ def setLevel(level) {
 }
 
 def setLevel(level, rate) {
+    log.debug("Set Level (${level}, ${rate})")
+    setLevel(level)
+}
+
+def setShadeLevel() {
+    log.debug("SetLevel()")
+    setLevel(0)
+}
+
+def setShadeLevel(level) {
+    log.debug("Set Level (${level})")
+    if (level == 0){
+        close()
+    } else if (level == 100){
+        open()
+    } else {
+        opening()
+        sendEvent(name: "level", value: level, unit: "%")
+        sendEvent(name: "shadeLevel", value: level)
+        setSomaPosition(level)
+    }
+}
+
+def setShadeLevel(level, rate) {
     log.debug("Set Level (${level}, ${rate})")
     setLevel(level)
 }
@@ -554,15 +572,15 @@ def parse_json(json) {
     log.debug "received JSON from parent DTH: $json"
     if (json.battery_level) {
         log.debug "SOMA Shade Battery Level for $json.mac is: $json.battery_level"
-						// The battery level should usually be between 420 and 320mV. 360 is considered 0% for useful work and above 400? considerd 100%.
+						// The battery level should usually be between 420 and 320mV. 360 is considered 0% for useful work and above 400? considered 100%.
                         def bat_percentage
                         def bat_value
-                        if (json.battery_level >= 400) {
+                        if (json.battery_level >= 410) {
                             bat_percentage = 100
                         } else if (json.battery_level <= 360) {
                             bat_percentage = 0
                         } else {
-                            bat_value = ((json.battery_level - 360) / 40 * 100)
+                            bat_value = ((json.battery_level - 360) / 70 * 100)
                             bat_percentage = bigDecimalRound(bat_value, 0)  // Round to zero devimal places
                         }
                         log.info "SOMA Shade Battery Level for $json.mac is: $bat_percentage ($json.battery_level)"
