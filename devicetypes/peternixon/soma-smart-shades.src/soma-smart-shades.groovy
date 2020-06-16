@@ -536,16 +536,12 @@ void callBackHandler(physicalgraph.device.HubResponse hubResponse) {
 
 		// If response is for battery level
 		if (json.battery_level){
-			// represent battery level as a percentage
-			def battery_percent = json.battery_level - 320
-			if (battery_percent > 100) {battery_percent = 100}
-            log.debug "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC: battery"
+            def battery_percent = calculateBatteryPercentage(json.battery_level)
 			sendEvent(name: "battery", value: battery_percent)
 		}
 		// If response is for shade level
 		else if (json.find{ it.key == "position" }){
 			def new_level = 100 - json.position  // represent level as % open
-            log.debug "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC: position"
 			sendEvent(name: "level", value: new_level)
 
 			// Update shade state
@@ -564,29 +560,34 @@ void callBackHandler(physicalgraph.device.HubResponse hubResponse) {
 	}
 }
 
-def bigDecimalRound(n,decimals){
+private bigDecimalRound(n,decimals) {
+    // I don't think we need this anymore
     return(n.setScale(decimals, BigDecimal.ROUND_HALF_UP))
+}
+  
+private calculateBatteryPercentage(int batteryVoltage) {
+    // The battery level should usually be between 420 and 320mV. 360 is considered 0% for useful work and above 410 considered 100%.
+    def hundredBatteryVoltage = 410;
+    def zeroBatteryVoltage = 360;
+    if (batteryVoltage < zeroBatteryVoltage) {
+        return 0;
+    }
+    if (batteryVoltage > hundredBatteryVoltage) {
+        return 100;
+    }
+    def deltaBatteryVoltage = hundredBatteryVoltage - zeroBatteryVoltage;
+    return (batteryVoltage - zeroBatteryVoltage) * 100 / deltaBatteryVoltage;
 }
 
 def parse_json(json) {
     log.debug "received JSON from parent DTH: $json"
     if (json.battery_level) {
         log.debug "SOMA Shade Battery Level for $json.mac is: $json.battery_level"
-						// The battery level should usually be between 420 and 320mV. 360 is considered 0% for useful work and above 400? considered 100%.
-                        def bat_percentage
-                        def bat_value
-                        if (json.battery_level >= 410) {
-                            bat_percentage = 100
-                        } else if (json.battery_level <= 360) {
-                            bat_percentage = 0
-                        } else {
-                            bat_value = ((json.battery_level - 360) / 70 * 100)
-                            bat_percentage = bigDecimalRound(bat_value, 0)  // Round to zero devimal places
-                        }
-                        log.info "SOMA Shade Battery Level for $json.mac is: $bat_percentage ($json.battery_level)"
+        def battery_percent = calculateBatteryPercentage(json.battery_level)
+        log.info "SOMA Shade Battery Level for $json.mac is: $battery_percent ($json.battery_level)"
 
-						sendEvent([name:"voltage", value: json.battery_level / 100, unit: "V", displayed: true])
-						sendEvent([name:"battery", value: bat_percentage, unit: "%", displayed: true])
+		sendEvent([name:"voltage", value: json.battery_level / 100, unit: "V", displayed: true])
+		sendEvent([name:"battery", value: battery_percent, unit: "%", displayed: true])
     } else if (json.position) {
 						def positionPercentage = 100 - json.position // represent level as % open
                         if (positionPercentage > 100) {positionPercentage = 100}
