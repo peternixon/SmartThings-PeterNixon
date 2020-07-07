@@ -55,7 +55,7 @@ metadata {
             input ("preset", "number", title: "Preset position", description: "Set the window shade preset position", defaultValue: 50, range: "1..100", required: false, displayDuringSetup: false)
             input("actionDelay", "number",
                 title: "Action Delay",
-                description: "Time it takes the shade to close (1-300; default if empty: 130 sec)",
+                description: "Time it takes the shade to close (1-300; default if empty: 1 sec)",
                 range: "1..300", displayDuringSetup: false)
 
             input("supportedCommands", "enum",
@@ -76,7 +76,6 @@ metadata {
                 ]
             )
     }
-
 
 
     // UI tile definitions
@@ -174,15 +173,6 @@ metadata {
                  "windowShadePreset",
                  "levelSlider",
                  "blank",
-                 /*
-				 "statesLabel",
-				 "windowShadePartiallyOpen",
-                 "windowShadeOpening",
-                 "windowShadeClosing",
-                 "windowShadeOpened",
-                 "windowShadeClosed",
-                 "windowShadeUnknown",
-                 */
                  "statusLabel",
                  "battery",
                  "voltage",
@@ -212,7 +202,7 @@ private getSupportedCommandsMap() {
 }
 
 private getShadeActionDelay() {
-    (settings.actionDelay != null) ? settings.actionDelay : 130
+    (settings.actionDelay != null) ? settings.actionDelay : 1
 }
 
 def installed() {
@@ -254,33 +244,14 @@ def poll() {
     return [checkPosition(), checkBattery()]
 }
 
-void on(){
+def on() {
     log.debug "Device ID: $device.deviceNetworkId on() was triggered"
-    open()
-    // This is what Hue does
-	// log.trace parent.on(this)
+    return open()
 }
 
-
-def off(){
+def off() {
     log.debug "Device ID: $device.deviceNetworkId off() was triggered"
-    close()
-}
-
-def openX() {
-    log.debug "Device ID: $device.deviceNetworkId open() was triggered"
-    opening()
-    //runIn(shadeActionDelay, "opened")
-    //opened()
-    return parent.sendSomaCmd("/open_shade/" + getDataValue("shadeMac"))
-}
-
-def closeX() {
-    log.debug "Device ID: $device.deviceNetworkId close() was triggered"
-    closing()
-    runIn(shadeActionDelay, "closed")
-    //closed()
-    return parent.sendSomaCmd("/close_shade/" + getDataValue("shadeMac"))
+    return close()
 }
 
 def open() {
@@ -288,6 +259,7 @@ def open() {
     opened()
     return setSomaPosition(100)
 }
+
 def close() {
     log.debug "Device ID: $device.deviceNetworkId close() was triggered"
     closed()
@@ -298,7 +270,7 @@ def pause() {
     log.debug "Device ID: $device.deviceNetworkId pause() was triggered"
     partiallyOpen()
     runIn(2, "checkPosition")
-    return parent.sendSomaCmd("/stop_shade/" + getDataValue("shadeMac"))
+    return parent.pause(this)
 }
 
 def presetPosition() {
@@ -400,13 +372,8 @@ private String convertPortToHex(port) {
 }
 
 private setSomaPosition(percent) {
-    // Convert from percentage open to physical position value
-    def physicalPosition = 100 - percent
-    log.info "Setting shade " + getDataValue("shadeMac") + " position to $physicalPosition"
+    parent.setSomaPosition(this, percent)
     runIn(shadeActionDelay, "checkPosition")
-    // partiallyOpen() // This is a hack because runIn() doesn't seem to be working..
-    // return parent.sendSomaCmd("/set_shade_position/" + getDataValue("shadeMac") + "/" + physicalPosition)
-    parent.sendSomaCmdCallback("/set_shade_position/" + getDataValue("shadeMac") + "/" + physicalPosition)
 }
 
 def setLevel() {
@@ -473,100 +440,17 @@ def generateEvent(Map results) {
 }
 
 def checkBattery() {
-    log.info "Checking shade battery level.."
+    log.debug "checkBattery() Checking shade battery level.."
     return parent.checkBattery(getDataValue("shadeMac"))
 }
+
 def checkPosition() {
-    log.info "Checking shade position.."
+    log.debug "checkPosition() Checking shade position.."
     return parent.checkPosition(getDataValue("shadeMac"))
 }
 
-def checkBatteryC() {
-    def mac = getDataValue("shadeMac")
-    log.info "Checking shade $mac battery level.."
-    def path = "/get_battery_level/$mac"
-    log.debug "Request Path: $path"
-    return sendSomaCmdCallback(path)
-}
-def checkPositionC() {
-    def mac = getDataValue("shadeMac")
-    log.info "Checking shade $mac position.."
-    def path = "/get_shade_state/$mac"
-    log.debug "Request Path: $path"
-    return sendSomaCmdCallback(path)
-}
-
-private sendSomaCmdCallback(String path) {
-    log.debug "sendSomaCmdCallback() triggered for DNI: $device.deviceNetworkId with path $path"
-    def host = getDataValue("bridgeIp")
-    def LocalDevicePort = getDataValue("bridgePort")
-
-    def headers = [:] 
-    //headers.put("HOST", getHostAddress())
-    headers.put("HOST", "$host:$LocalDevicePort")
-    headers.put("Accept", "application/json")
-    log.debug "Request Headers: $headers"
-
-    try {
-        def result = new physicalgraph.device.HubAction(
-            method: "GET",
-            path: path,
-            headers: headers,
-            device.deviceNetworkId,
-			[callback: callBackHandler]
-            )
-        sendHubCommand(result)
-        log.debug "Hub Action: $result"
-        //return result
-    }
-    catch (Exception e) {
-        log.debug "Hit Exception $e on $result"
-    }
-}
-
-// parse callback events into attributes
-void callBackHandler(physicalgraph.device.HubResponse hubResponse) {
-	log.debug "Entered callBackHandler()..."
-	def json = hubResponse.json
-	log.debug "Parsing '${json}'"
-
-	// If command was executed successfully
-	if (json.result == "success") {
-		log.debug "Command executed successfully"
-
-		// If response is for battery level
-		if (json.battery_level){
-            def battery_percent = calculateBatteryPercentage(json.battery_level)
-			sendEvent(name: "battery", value: battery_percent)
-		}
-		// If response is for shade level
-		else if (json.find{ it.key == "position" }){
-			def new_level = 100 - json.position  // represent level as % open
-			sendEvent(name: "level", value: new_level)
-
-			// Update shade state
-			if (new_level == 100){
-				sendEvent(name: "windowShade", value: "open")
-			} else if (new_level == 0) {
-				sendEvent(name: "windowShade", value: "closed")
-			} else {
-				sendEvent(name: "windowShade", value: "partially open")
-			}
-		}
-		// If successfull response is from another action, get new shade level
-		else {
-			checkPosition()
-		}
-	}
-}
-
-private bigDecimalRound(n,decimals) {
-    // I don't think we need this anymore
-    return(n.setScale(decimals, BigDecimal.ROUND_HALF_UP))
-}
-  
 private calculateBatteryPercentage(int batteryVoltage) {
-    // The battery level should usually be between 420 and 320mV. 360 is considered 0% for useful work and above 410 considered 100%.
+    // The battery level should usually be between 420 and 320. 360 is considered 0% for useful work and above 410 considered 100%.
     def hundredBatteryVoltage = 410;
     def zeroBatteryVoltage = 360;
     if (batteryVoltage < zeroBatteryVoltage) {
@@ -580,29 +464,29 @@ private calculateBatteryPercentage(int batteryVoltage) {
 }
 
 def parse_json(json) {
-    log.debug "received JSON from parent DTH: $json"
+    log.debug "received JSON from parent ($parent) DTH: $json"
     if (json.battery_level) {
         log.debug "SOMA Shade Battery Level for $json.mac is: $json.battery_level"
         def battery_percent = calculateBatteryPercentage(json.battery_level)
-        log.info "SOMA Shade Battery Level for $json.mac is: $battery_percent ($json.battery_level)"
+        log.info "SOMA Shade Battery Level for $json.mac is: $battery_percent percent ($json.battery_level)"
 
 		sendEvent([name:"voltage", value: json.battery_level / 100, unit: "V", displayed: true])
 		sendEvent([name:"battery", value: battery_percent, unit: "%", displayed: true])
     } else if (json.position) {
-						def positionPercentage = 100 - json.position // represent level as % open
-                        if (positionPercentage > 100) {positionPercentage = 100}
-						log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
+		def positionPercentage = 100 - json.position // represent level as % open
+        if (positionPercentage > 100) {positionPercentage = 100}
+		log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
 						
-                        // Update child shade state
-                        sendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
-			            if (positionPercentage == 100){
-				            opened()
-			            } else if (positionPercentage == 0) {
-				            closed()
-            			} else {
-                            partiallyOpen()
-            			}
+        // Update child shade state
+        sendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
+		if (positionPercentage == 100){
+		    opened()
+		} else if (positionPercentage == 0) {
+			closed()
+        } else {
+            partiallyOpen()
+        }
     } else {
-                        // checkPosition()
+            // checkPosition()
     }
 }

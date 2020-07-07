@@ -117,7 +117,7 @@ def parse(description) {
             }
             if (json.mac) {
                 log.debug "My attached (child) devices are: $childDevices"
-                def childDni = createChildDni(json.mac)
+                def childDni = generateChildDni(json.mac)
                 def childDevice = childDevices.find {
 				    // it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.sourceEndpoint}" || it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.endpoint}"
                     it.deviceNetworkId == childDni
@@ -156,7 +156,7 @@ def parse(description) {
     }
 }
 
-def createChildDni(mac) {
+def generateChildDni(mac) {
     // Remove colons and change to upercase
     def dni = mac.replaceAll(":","").toUpperCase()
     return dni
@@ -175,7 +175,7 @@ private void createChildDevices(shades) {
             def x = (i - 1)
             log.debug("Processing child device: ${shades[x]['name']} with MAC ${shades[x]['mac']}")
             // def childDni = "${shades[x]['mac']}"
-            def childDni = createChildDni("${shades[x]['mac']}")
+            def childDni = generateChildDni("${shades[x]['mac']}")
             // def existing = getChildDevice(childDni)
             def existing = childDevices.find {
                 it.deviceNetworkId == childDni
@@ -251,6 +251,10 @@ def poll() {
     log.info "Device ID: $device.deviceNetworkId poll() was triggered"
     // return listSomaDevices()
     return initialize()
+}
+
+def pause(childDevice) {
+    return sendSomaCmd("/stop_shade/" + childDevice.getDataValue("shadeMac"))
 }
 
 // TODO
@@ -330,6 +334,17 @@ def checkPosition(mac) {
     return sendSomaCmdCallback(path)
 }
 
+private setSomaPosition(childName, percent) {
+    log.debug "Child's name is: $childName"
+    // Convert from percentage open to physical position value
+    def physicalPosition = 100 - percent
+    def mac = childName.getDataValue("shadeMac")
+    log.info "Setting shade $mac position to $physicalPosition"
+    //runIn(shadeActionDelay, "checkPosition")
+    // partiallyOpen() // This is a hack because runIn() doesn't seem to be working..
+    // return parent.sendSomaCmd("/set_shade_position/" + getDataValue("shadeMac") + "/" + physicalPosition)
+    sendSomaCmdCallback("/set_shade_position/" + mac + "/" + physicalPosition)
+}
 
 def sendSomaCmdCallback(String path) {
     log.debug "sendSomaCmdCallback() triggered for DNI: $device.deviceNetworkId with path $path"
@@ -359,21 +374,34 @@ def sendSomaCmdCallback(String path) {
     }
 }
 
+
 // parse callback events into attributes
 void callBackHandler(physicalgraph.device.HubResponse hubResponse) {
-	log.debug "Entered callBackHandler()..."
+	log.debug "Entered SOMA Connect callBackHandler()..."
 	def json = hubResponse.json                    // => any JSON included in response body, as a data structure of lists and maps
-	log.debug "Parsed JSON: '${json}'"
+	// log.trace "Parsed JSON: '${json}'"
 
     if (!json) {
-          log.debug "json was null for some reason :("
+          log.warn "JSON response was null for some reason!"
+          return
     } else {
         log.debug "JSON Response: $json"
         // Response should look something like {"result":"success","version":"2.0.12","shades":[{"name":"Room 1","mac":"FF:FF:FF:FF:FF:FF"}]}
-        if (json.result == "error") {
-            log.info "ERROR Response from SOMA Connect: $json.msg"
-        } else if (json.result == "success") {
-            log.info "SUCCESS Response from SOMA Connect"
+        switch(json.result) {            
+            case "error": 
+                log.warn "ERROR Response from SOMA Connect: $json.msg"
+                return 
+            case "success": 
+                log.debug "SUCCESS Response from SOMA Connect"
+                break; 
+            default: 
+                log.error "Invalid Response from SOMA Connect!"
+                return
+        }
+        //if (json.result == "error") {
+        //    log.error "ERROR Response from SOMA Connect: $json.msg"
+        //} else if (json.result == "success") {
+
             // response from list_devices
             if (json.shades) {
                 def shadeCount = json.shades.size()
@@ -385,7 +413,7 @@ void callBackHandler(physicalgraph.device.HubResponse hubResponse) {
             }
             if (json.mac) {
                 log.debug "My attached (child) devices are: $childDevices"
-                def childDni = createChildDni(json.mac)
+                def childDni = generateChildDni(json.mac)
                 def childDevice = childDevices.find {
 				    // it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.sourceEndpoint}" || it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.endpoint}"
                     it.deviceNetworkId == childDni
@@ -422,6 +450,7 @@ void callBackHandler(physicalgraph.device.HubResponse hubResponse) {
                     runIn(5, "listSomaDevices")
 			    }
             }
-        }
+        //}
     }
 }
+
