@@ -382,9 +382,10 @@ void callBackHandler(physicalgraph.device.HubResponse hubResponse) {
     // log.trace "Parsed JSON: '${json}'"
 
     if (!json) {
-          log.warn "JSON response was null for some reason!"
-          return
-    } else {
+        log.warn "JSON response was null for some reason!"
+        return
+    }
+    // remove indent from here
         log.debug "JSON Response: $json"
         // Response should look something like {"result":"success","version":"2.0.12","shades":[{"name":"Room 1","mac":"FF:FF:FF:FF:FF:FF"}]}
         switch(json.result) {            
@@ -416,37 +417,14 @@ void callBackHandler(physicalgraph.device.HubResponse hubResponse) {
                 it.deviceNetworkId == childDni
                 //it.sendEvent(childEvent)
         }
+        // Leave this indent. remove previous
         if (childDevice) {
             log.debug "Event is for child device: $childDevice"
             log.trace "Message forwarded to $childDevice"
-            childDevice.parse_json( json )
-            /*
-            if (json.battery_level) {
-                // The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
-                log.info "SOMA Shade Battery Level for $json.mac is: $json.battery_level"
-                def bat_percentage = json.battery_level - 315
-                childDevice.createAndSendEvent([name:"voltage", value: json.battery_level, unit: "mV", displayed: true])
-                childDevice.createAndSendEvent([name:"battery", value: bat_percentage, unit: "%", displayed: true])
-            }
-            if (json.position) {
-                def positionPercentage = 100 - json.position // represent level as % open
-                log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
-                
-                // Update child shade state
-                childDevice.createAndSendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
-                if (positionPercentage == 100){
-                    childDevice.opened()
-                } else if (positionPercentage == 0) {
-                    childDevice.closed()
-                } else {
-                    childDevice.partiallyOpen()
-                }
-            */
+            childDevice.parse_json(json)
         } else {
                 log.info "$json.mac was not found on a currently configured child device! Rescan triggered"
                 runIn(5, "listSomaDevices")
-            }
         }
     }
 }
-
