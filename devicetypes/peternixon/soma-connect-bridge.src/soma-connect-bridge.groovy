@@ -379,45 +379,42 @@ def sendSomaCmdCallback(String path) {
 void callBackHandler(physicalgraph.device.HubResponse hubResponse) {
     log.debug "Entered SOMA Connect callBackHandler()..."
     def json = hubResponse.json                    // => any JSON included in response body, as a data structure of lists and maps
-    // log.trace "Parsed JSON: '${json}'"
 
     if (!json) {
         log.warn "JSON response was null for some reason!"
         return
     }
-    // remove indent from here
-        log.debug "JSON Response: $json"
-        // Response should look something like {"result":"success","version":"2.0.12","shades":[{"name":"Room 1","mac":"FF:FF:FF:FF:FF:FF"}]}
-        switch(json.result) {            
-            case "error": 
-                log.warn "ERROR Response from SOMA Connect: $json.msg"
-                return 
-            case "success": 
-                log.debug "SUCCESS Response from SOMA Connect"
-                break; 
-            default: 
-                log.error "Invalid Response from SOMA Connect!"
-                return
-        }
+	log.debug "JSON Response: $json"
+	// Response should look something like {"result":"success","version":"2.0.12","shades":[{"name":"Room 1","mac":"FF:FF:FF:FF:FF:FF"}]}
+	switch(json.result) {            
+		case "error": 
+			log.warn "ERROR Response from SOMA Connect: $json.msg"
+			return 
+		case "success": 
+			log.debug "SUCCESS Response from SOMA Connect"
+			break; 
+		default: 
+			log.error "Invalid Response from SOMA Connect!"
+			return
+	}
 
-        // response from list_devices
-        if (json.shades) {
-            def shadeCount = json.shades.size()
-            def shadeList = json.shades
-            log.debug "$shadeCount SOMA Shades exist.."
-            sendEvent(name: "shadeCount", value: shadeCount, isStateChange: true)
-            sendEvent(name: "shadeList", value: shadeList, isStateChange: true)
-            createChildDevices(json.shades)
+	// response from list_devices
+	if (json.shades) {
+		def shadeCount = json.shades.size()
+		def shadeList = json.shades
+		log.debug "$shadeCount SOMA Shades exist.."
+		sendEvent(name: "shadeCount", value: shadeCount, isStateChange: true)
+		sendEvent(name: "shadeList", value: shadeList, isStateChange: true)
+		createChildDevices(json.shades)
+	}
+	if (json.mac) {
+		log.debug "My attached (child) devices are: $childDevices"
+		def childDni = generateChildDni(json.mac)
+		def childDevice = childDevices.find {
+			// it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.sourceEndpoint}" || it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.endpoint}"
+			it.deviceNetworkId == childDni
+			//it.sendEvent(childEvent)
         }
-        if (json.mac) {
-            log.debug "My attached (child) devices are: $childDevices"
-            def childDni = generateChildDni(json.mac)
-            def childDevice = childDevices.find {
-                // it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.sourceEndpoint}" || it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.endpoint}"
-                it.deviceNetworkId == childDni
-                //it.sendEvent(childEvent)
-        }
-        // Leave this indent. remove previous
         if (childDevice) {
             log.debug "Event is for child device: $childDevice"
             log.trace "Message forwarded to $childDevice"
