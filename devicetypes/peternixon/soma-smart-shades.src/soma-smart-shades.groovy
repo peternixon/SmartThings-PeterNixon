@@ -57,7 +57,7 @@ metadata {
             title: "Action Delay",
             description: "Time it takes the shade to close (1-300; default if empty: 1 sec)",
             range: "1..300", displayDuringSetup: false)
-
+        /*
         input("supportedCommands", "enum",
             title: "Supported Commands",
             description: "open, close, pause", multiple: false,
@@ -75,6 +75,7 @@ metadata {
                 "10": "open, closed, close, pause"
             ]
         )
+        */
     }
 
 
@@ -184,7 +185,7 @@ metadata {
     }
 }
 
-
+/*
 private getSupportedCommandsMap() {
     [
         "1": ["open", "close"],
@@ -200,6 +201,7 @@ private getSupportedCommandsMap() {
         "10": ["open", "closed", "close", "pause"]
     ]
 }
+*/
 
 private getShadeActionDelay() {
     (settings.actionDelay != null) ? settings.actionDelay : 1
@@ -213,17 +215,18 @@ def installed() {
 
 def updated() {
     log.debug "updated()"
-    def commands = (settings.supportedCommands != null) ? settings.supportedCommands : "2"
-    sendEvent(name: "supportedWindowShadeCommands", value: JsonOutput.toJson(supportedCommandsMap[commands]))
+    //def commands = (settings.supportedCommands != null) ? settings.supportedCommands : "2"
+    //sendEvent(name: "supportedWindowShadeCommands", value: JsonOutput.toJson(supportedCommandsMap[commands]))
+    sendEvent(name: "supportedWindowShadeCommands", value: JsonOutput.toJson(["open", "close", "pause"]), displayed: false)
     refresh()
 }
 
 // parse events into attributes
 def parse(description) {
     // This shouldn't get hit as events go via the parent DTH
-    log.debug "Parsing Event: '${description}'"
+    log.debug "Parsing unexpected event: '${description}'"
     def msg = parseLanMessage(description)
-    log.debug "Parsed Message: '${msg}'"
+    log.debug "Parsed unexpected message: '${msg}'"
 }
 
 // Capability commands
