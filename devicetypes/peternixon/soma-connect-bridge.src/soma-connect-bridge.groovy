@@ -46,28 +46,28 @@ metadata {
          }
     }
     tiles(scale: 2) {
-     	multiAttributeTile(name: "rich-control", type: "generic", width: 6, height: 4, canChangeIcon: true) {
-			tileAttribute ("device.status", key: "PRIMARY_CONTROL") {
-				attributeState "Offline", label: '${currentValue}', action: "", icon: "st.Electronics.electronics1", backgroundColor: "#ffffff"
-	            attributeState "Online", label: '${currentValue}', action: "", icon: "st.Electronics.electronics1", backgroundColor: "#00A0DC"
-			    }
-			}
-		valueTile("doNotRemove", "v", decoration: "flat", height: 2, width: 6, inactiveLabel: false) {
-			state "default", label:'If removed, SOMA Shades will not work properly'
-		}
-		valueTile("idNumber", "device.idNumber", decoration: "flat", height: 2, width: 6, inactiveLabel: false) {
-			state "default", label:'ID: ${currentValue}'
-		}
-		valueTile("networkAddress", "device.networkAddress", decoration: "flat", height: 2, width: 6, inactiveLabel: false) {
-			state "default", label:'IP: ${currentValue}'
-		}
+        multiAttributeTile(name: "rich-control", type: "generic", width: 6, height: 4, canChangeIcon: true) {
+            tileAttribute ("device.status", key: "PRIMARY_CONTROL") {
+                attributeState "Offline", label: '${currentValue}', action: "", icon: "st.Electronics.electronics1", backgroundColor: "#ffffff"
+                attributeState "Online", label: '${currentValue}', action: "", icon: "st.Electronics.electronics1", backgroundColor: "#00A0DC"
+                }
+            }
+        valueTile("doNotRemove", "v", decoration: "flat", height: 2, width: 6, inactiveLabel: false) {
+            state "default", label:'If removed, SOMA Shades will not work properly'
+        }
+        valueTile("idNumber", "device.idNumber", decoration: "flat", height: 2, width: 6, inactiveLabel: false) {
+            state "default", label:'ID: ${currentValue}'
+        }
+        valueTile("networkAddress", "device.networkAddress", decoration: "flat", height: 2, width: 6, inactiveLabel: false) {
+            state "default", label:'IP: ${currentValue}'
+        }
         
         childDeviceTile("shadeLevel", "shadeLevel", height: 2, width: 2, childTileName: "shadeLevel")
         childDeviceTile("batteryLevel", "batteryLevel", height: 2, width: 2, childTileName: "batteryLevel")
         childDeviceTile("BatteryVoltage", "BatteryVoltage", height: 2, width: 2, childTileName: "BatteryVoltage")
         
-		main (["rich-control"])
-		details(["rich-control",
+        main (["rich-control"])
+        details(["rich-control",
                  "doNotRemove",
                  "idNumber",
                  "networkAddress",
@@ -75,7 +75,7 @@ metadata {
                  "batteryLevel",
                  "BatteryVoltage"
                  ])
-	}
+    }
     /*
     tiles {
         childDeviceTile("shadeLevel", "shadeLevel", height: 2, width: 2, childTileName: "shadeLevel")
@@ -119,38 +119,38 @@ def parse(description) {
                 log.debug "My attached (child) devices are: $childDevices"
                 def childDni = generateChildDni(json.mac)
                 def childDevice = childDevices.find {
-				    // it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.sourceEndpoint}" || it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.endpoint}"
+                    // it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.sourceEndpoint}" || it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.endpoint}"
                     it.deviceNetworkId == childDni
                     //it.sendEvent(childEvent)
-			    }
-			    if (childDevice) {
-            	    log.debug "Event is for child device: $childDevice"
+                }
+                if (childDevice) {
+                    log.debug "Event is for child device: $childDevice"
 
-					if (json.battery_level) {
-						// The battery level should usually be between 420 and 320mV. 360 is considered 0% for useful work and above 415 considerd 100%.
-						def bat_percentage = ((json.battery_level - 360) / 55 * 100).round(0)
+                    if (json.battery_level) {
+                        // The battery level should usually be between 420 and 320mV. 360 is considered 0% for useful work and above 415 considerd 100%.
+                        def bat_percentage = ((json.battery_level - 360) / 55 * 100).round(0)
                         log.info "SOMA Shade Battery Level for $json.mac is: $bat_percentage ($json.battery_level)"
-						childDevice.createAndSendEvent([name:"voltage", value: json.battery_level, unit: "mV", displayed: true])
-						childDevice.createAndSendEvent([name:"battery", value: bat_percentage * 10, unit: "%", displayed: true])
-					}
-					if (json.position) {
-						def positionPercentage = 100 - json.position // represent level as % open
-						log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
-						
+                        childDevice.createAndSendEvent([name:"voltage", value: json.battery_level, unit: "mV", displayed: true])
+                        childDevice.createAndSendEvent([name:"battery", value: bat_percentage * 10, unit: "%", displayed: true])
+                    }
+                    if (json.position) {
+                        def positionPercentage = 100 - json.position // represent level as % open
+                        log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
+                        
                         // Update child shade state
                         childDevice.createAndSendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
-			            if (positionPercentage == 100){
-				            return childDevice.opened()
-			            } else if (positionPercentage == 0) {
-				            return childDevice.closed()
-            			} else {
+                        if (positionPercentage == 100){
+                            return childDevice.opened()
+                        } else if (positionPercentage == 0) {
+                            return childDevice.closed()
+                        } else {
                             return childDevice.partiallyOpen()
-            			}
-					}
+                        }
+                    }
             } else {
                     log.info "$json.mac was not found on a currently configured child device! Rescan triggered"
                     return listSomaDevices()
-			    }
+                }
             }
         }
     }
@@ -179,7 +179,7 @@ private void createChildDevices(shades) {
             // def existing = getChildDevice(childDni)
             def existing = childDevices.find {
                 it.deviceNetworkId == childDni
-			}
+            }
             if (!existing) {
                 def childDevice = addChildDevice("Soma Smart Shades",
                     childDni,
@@ -191,8 +191,8 @@ private void createChildDevices(shades) {
                         "shadeName": "${shades[x]['name']}",
                         "shadeMac": "${shades[x]['mac']}",
                         "bridgeIp": getDataValue("bridgeIp"),
-					    "bridgePort": getDataValue("bridgePort"),
-				    ],
+                        "bridgePort": getDataValue("bridgePort"),
+                    ],
                     isComponent: false,
                     componentName: "ch$i",
                     componentLabel: "Channel $i"
@@ -228,7 +228,7 @@ def initialize() {
 
 def updated() {
     log.debug("updated() Soma Connect with settings ${settings}")
-	return initialize()
+    return initialize()
 }
 
 def installed() {
@@ -244,7 +244,7 @@ def refresh() {
 
 def ping() {
     log.info "Device ID: $device.deviceNetworkId ping() was triggered"
-	return refresh()
+    return refresh()
 }
 
 def poll() {
@@ -259,14 +259,14 @@ def pause(childDevice) {
 
 // TODO
 def sync(ip, port) {
-	def existingIp = getDataValue("ip")
-	def existingPort = getDataValue("port")
-	if (ip && ip != existingIp) {
-		updateDataValue("ip", ip)
-	}
-	if (port && port != existingPort) {
-		updateDataValue("port", port)
-	}
+    def existingIp = getDataValue("ip")
+    def existingPort = getDataValue("port")
+    if (ip && ip != existingIp) {
+        updateDataValue("ip", ip)
+    }
+    if (port && port != existingPort) {
+        updateDataValue("port", port)
+    }
 }
 
 /**@
@@ -363,7 +363,7 @@ def sendSomaCmdCallback(String path) {
             path: path,
             headers: headers,
             device.deviceNetworkId,
-			[callback: callBackHandler]
+            [callback: callBackHandler]
             )
         sendHubCommand(result)
         log.debug "Hub Action: $result"
@@ -377,9 +377,9 @@ def sendSomaCmdCallback(String path) {
 
 // parse callback events into attributes
 void callBackHandler(physicalgraph.device.HubResponse hubResponse) {
-	log.debug "Entered SOMA Connect callBackHandler()..."
-	def json = hubResponse.json                    // => any JSON included in response body, as a data structure of lists and maps
-	// log.trace "Parsed JSON: '${json}'"
+    log.debug "Entered SOMA Connect callBackHandler()..."
+    def json = hubResponse.json                    // => any JSON included in response body, as a data structure of lists and maps
+    // log.trace "Parsed JSON: '${json}'"
 
     if (!json) {
           log.warn "JSON response was null for some reason!"
@@ -398,59 +398,55 @@ void callBackHandler(physicalgraph.device.HubResponse hubResponse) {
                 log.error "Invalid Response from SOMA Connect!"
                 return
         }
-        //if (json.result == "error") {
-        //    log.error "ERROR Response from SOMA Connect: $json.msg"
-        //} else if (json.result == "success") {
 
-            // response from list_devices
-            if (json.shades) {
-                def shadeCount = json.shades.size()
-                def shadeList = json.shades
-                log.debug "$shadeCount SOMA Shades exist.."
-                sendEvent(name: "shadeCount", value: shadeCount, isStateChange: true)
-                sendEvent(name: "shadeList", value: shadeList, isStateChange: true)
-                createChildDevices(json.shades)
+        // response from list_devices
+        if (json.shades) {
+            def shadeCount = json.shades.size()
+            def shadeList = json.shades
+            log.debug "$shadeCount SOMA Shades exist.."
+            sendEvent(name: "shadeCount", value: shadeCount, isStateChange: true)
+            sendEvent(name: "shadeList", value: shadeList, isStateChange: true)
+            createChildDevices(json.shades)
+        }
+        if (json.mac) {
+            log.debug "My attached (child) devices are: $childDevices"
+            def childDni = generateChildDni(json.mac)
+            def childDevice = childDevices.find {
+                // it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.sourceEndpoint}" || it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.endpoint}"
+                it.deviceNetworkId == childDni
+                //it.sendEvent(childEvent)
+        }
+        if (childDevice) {
+            log.debug "Event is for child device: $childDevice"
+            log.trace "Message forwarded to $childDevice"
+            childDevice.parse_json( json )
+            /*
+            if (json.battery_level) {
+                // The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
+                log.info "SOMA Shade Battery Level for $json.mac is: $json.battery_level"
+                def bat_percentage = json.battery_level - 315
+                childDevice.createAndSendEvent([name:"voltage", value: json.battery_level, unit: "mV", displayed: true])
+                childDevice.createAndSendEvent([name:"battery", value: bat_percentage, unit: "%", displayed: true])
             }
-            if (json.mac) {
-                log.debug "My attached (child) devices are: $childDevices"
-                def childDni = generateChildDni(json.mac)
-                def childDevice = childDevices.find {
-				    // it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.sourceEndpoint}" || it.deviceNetworkId == "${device.deviceNetworkId}:${eventDescMap.endpoint}"
-                    it.deviceNetworkId == childDni
-                    //it.sendEvent(childEvent)
-			}
-			if (childDevice) {
-            	    log.debug "Event is for child device: $childDevice"
-					log.trace "Message forwarded to $childDevice"
-                    childDevice.parse_json( json )
-                    /*
-					if (json.battery_level) {
-						// The battery level should usually be between 420 and 320mV. Anything under 320 is critically low.
-						log.info "SOMA Shade Battery Level for $json.mac is: $json.battery_level"
-						def bat_percentage = json.battery_level - 315
-						childDevice.createAndSendEvent([name:"voltage", value: json.battery_level, unit: "mV", displayed: true])
-						childDevice.createAndSendEvent([name:"battery", value: bat_percentage, unit: "%", displayed: true])
-					}
-					if (json.position) {
-						def positionPercentage = 100 - json.position // represent level as % open
-						log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
-						
-                        // Update child shade state
-                        childDevice.createAndSendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
-			            if (positionPercentage == 100){
-				            childDevice.opened()
-			            } else if (positionPercentage == 0) {
-				            childDevice.closed()
-            			} else {
-                            childDevice.partiallyOpen()
-            			}
-					*/
-            } else {
-                    log.info "$json.mac was not found on a currently configured child device! Rescan triggered"
-                    runIn(5, "listSomaDevices")
-			    }
+            if (json.position) {
+                def positionPercentage = 100 - json.position // represent level as % open
+                log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
+                
+                // Update child shade state
+                childDevice.createAndSendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
+                if (positionPercentage == 100){
+                    childDevice.opened()
+                } else if (positionPercentage == 0) {
+                    childDevice.closed()
+                } else {
+                    childDevice.partiallyOpen()
+                }
+            */
+        } else {
+                log.info "$json.mac was not found on a currently configured child device! Rescan triggered"
+                runIn(5, "listSomaDevices")
             }
-        //}
+        }
     }
 }
 
