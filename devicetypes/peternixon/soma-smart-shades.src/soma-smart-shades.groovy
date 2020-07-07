@@ -52,29 +52,29 @@ metadata {
         capability "Voltage Measurement"        
     }
     preferences {
-            input ("preset", "number", title: "Preset position", description: "Set the window shade preset position", defaultValue: 50, range: "1..100", required: false, displayDuringSetup: false)
-            input("actionDelay", "number",
-                title: "Action Delay",
-                description: "Time it takes the shade to close (1-300; default if empty: 1 sec)",
-                range: "1..300", displayDuringSetup: false)
+        input ("preset", "number", title: "Preset position", description: "Set the window shade preset position", defaultValue: 50, range: "1..100", required: false, displayDuringSetup: false)
+        input("actionDelay", "number",
+            title: "Action Delay",
+            description: "Time it takes the shade to close (1-300; default if empty: 1 sec)",
+            range: "1..300", displayDuringSetup: false)
 
-            input("supportedCommands", "enum",
-                title: "Supported Commands",
-                description: "open, close, pause", multiple: false,
-                options: [
-                    "1": "open, close",
-                    "2": "open, close, pause",
-                    "3": "open",
-                    "4": "close",
-                    "5": "pause",
-                    "6": "open, pause",
-                    "7": "close, pause",
-                    "8": "<empty list>",
-                    // For testing OCF/mobile client bugs
-                    "9": "open, closed, pause",
-                    "10": "open, closed, close, pause"
-                ]
-            )
+        input("supportedCommands", "enum",
+            title: "Supported Commands",
+            description: "open, close, pause", multiple: false,
+            options: [
+                "1": "open, close",
+                "2": "open, close, pause",
+                "3": "open",
+                "4": "close",
+                "5": "pause",
+                "6": "open, pause",
+                "7": "close, pause",
+                "8": "<empty list>",
+                // For testing OCF/mobile client bugs
+                "9": "open, closed, pause",
+                "10": "open, closed, close, pause"
+            ]
+        )
     }
 
 
@@ -157,17 +157,17 @@ metadata {
         controlTile("levelSlider", "device.level", "slider", height: 2, width: 2, range:"(0..100)") {
             state "level", action:"setLevel"
         }
-		//standardTile("switch", "device.switch", width: 2, height: 2, canChangeIcon: true) {
+        //standardTile("switch", "device.switch", width: 2, height: 2, canChangeIcon: true) {
         //    state "off", label:'${name}', action:"switch.on", icon:"st.doors.garage.garage-closed", backgroundColor:"#ffffff"
         //    state "on", label:'${name}', action:"switch.off", icon:"st.doors.garage.garage-open", backgroundColor:"#00a0dc"
-		//}
+        //}
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
             state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
         }
         main "windowShade"
-		details(["windowShade",
-				 "commandsLabel",
-				 "windowShadeOpen",
+        details(["windowShade",
+                 "commandsLabel",
+                 "windowShadeOpen",
                  "windowShadeClose",
                  "windowShadePause",
                  "windowShadePreset",
@@ -235,8 +235,8 @@ def refresh() {
 
 //Reporting of Battery & position levels
 def ping(){
-	log.debug "Ping() "
-	return refresh()
+    log.debug "Ping() "
+    return refresh()
 }
 
 def poll() {
@@ -426,8 +426,8 @@ def setShadeLevel(level, rate) {
 
 // Used by parent DTH to relay events from Soma Connect to this device
 def createAndSendEvent(map) {
-	log.debug "Received event via parent DTH: $map)"
-	sendEvent(map)
+    log.debug "Received event via parent DTH: $map)"
+    sendEvent(map)
     map
 }
 
@@ -470,19 +470,19 @@ def parse_json(json) {
         def battery_percent = calculateBatteryPercentage(json.battery_level)
         log.info "SOMA Shade Battery Level for $json.mac is: $battery_percent percent ($json.battery_level)"
 
-		sendEvent([name:"voltage", value: json.battery_level / 100, unit: "V", displayed: true])
-		sendEvent([name:"battery", value: battery_percent, unit: "%", displayed: true])
+        sendEvent([name:"voltage", value: json.battery_level / 100, unit: "V", displayed: true])
+        sendEvent([name:"battery", value: battery_percent, unit: "%", displayed: true])
     } else if (json.position) {
-		def positionPercentage = 100 - json.position // represent level as % open
+        def positionPercentage = 100 - json.position // represent level as % open
         if (positionPercentage > 100) {positionPercentage = 100}
-		log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
-						
+        log.info "SOMA Shade Position for $json.mac is: $positionPercentage"
+                        
         // Update child shade state
         sendEvent([name:"level", value: positionPercentage, unit: "%", displayed: true])
-		if (positionPercentage == 100){
-		    opened()
-		} else if (positionPercentage == 0) {
-			closed()
+        if (positionPercentage == 100){
+            opened()
+        } else if (positionPercentage == 0) {
+            closed()
         } else {
             partiallyOpen()
         }
